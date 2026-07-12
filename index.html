@@ -330,79 +330,100 @@ const DAYS = [{
   accent: "#9C27B0",
   exercises: [{
     name: "Leg Press",
-    sets: 4
+    sets: 4,
+    rep: "6–10"
   }, {
     name: "Bulgarian Split Squat",
     sets: 3,
-    uni: true
+    uni: true,
+    rep: "8–10"
   }, {
     name: "Step Ups",
     sets: 3,
-    uni: true
+    uni: true,
+    rep: "10–12"
   }, {
     name: "Leg Extension",
-    sets: 3
+    sets: 3,
+    rep: "8–12"
   }, {
     name: "Leg Curl",
-    sets: 2
+    sets: 2,
+    rep: "10–12"
   }, {
     name: "Calf Raises (Machine)",
-    sets: 4
+    sets: 4,
+    rep: "10–15"
   }, {
     name: "Preacher Curl",
-    sets: 4
+    sets: 4,
+    rep: "8–12"
   }]
 }, {
   label: "PUSH A",
   accent: "#2196F3",
   exercises: [{
     name: "Bench Press",
-    sets: 4
+    sets: 4,
+    rep: "5–8"
   }, {
     name: "DB Incline Press",
-    sets: 3
+    sets: 3,
+    rep: "4–8"
   }, {
     name: "Barbell OHP",
-    sets: 3
+    sets: 3,
+    rep: "5–8"
   }, {
     name: "Cable Flys",
-    sets: 3
+    sets: 3,
+    rep: "12–15"
   }, {
     name: "Pressdowns",
-    sets: 4
+    sets: 4,
+    rep: "8–12"
   }, {
     name: "Overhead Tricep Extension",
-    sets: 3
+    sets: 3,
+    rep: "8–12"
   }, {
     name: "Upright Row",
-    sets: 4
+    sets: 4,
+    rep: "6–10"
   }]
 }, {
   label: "PULL A",
   accent: "#FF9800",
   exercises: [{
     name: "Barbell Row",
-    sets: 4
+    sets: 4,
+    rep: "6–10"
   }, {
     name: "Lat Pulldown",
-    sets: 3
+    sets: 3,
+    rep: "8–12"
   }, {
     name: "Cable Row",
-    sets: 3
+    sets: 3,
+    rep: "8–12"
   }, {
     name: "Bayesian Curl",
     sets: 4,
-    uni: true
+    uni: true,
+    rep: "6–10"
   }, {
     name: "Dumbbell Raise",
-    sets: 3
+    sets: 3,
+    rep: "8–12"
   }, {
     name: "Ab Crunch",
-    sets: 3
+    sets: 3,
+    rep: "8–12"
   }, {
     name: "Cable Raise",
     sets: 2,
-    uni: true
+    uni: true,
+    rep: "8–12"
   }]
 }, {
   label: "REST",
@@ -435,81 +456,103 @@ const DAYS = [{
   accent: "#6A1B9A",
   exercises: [{
     name: "Deadlift",
-    sets: 3
+    sets: 3,
+    rep: "5"
   }, {
     name: "RDL",
-    sets: 3
+    sets: 3,
+    rep: "6–10"
   }, {
     name: "Hip Thrust",
-    sets: 4
+    sets: 4,
+    rep: "8–12"
   }, {
     name: "Leg Press",
-    sets: 3
+    sets: 3,
+    rep: "10–12"
   }, {
     name: "Leg Extension",
-    sets: 2
+    sets: 2,
+    rep: "12–15"
   }, {
     name: "Leg Curl",
-    sets: 2
+    sets: 2,
+    rep: "12–15"
   }, {
     name: "Calf Raises (Machine)",
-    sets: 4
+    sets: 4,
+    rep: "10–15"
   }, {
     name: "Incline Curl",
-    sets: 4
+    sets: 4,
+    rep: "12–15"
   }]
 }, {
   label: "PUSH B",
   accent: "#1565C0",
   exercises: [{
     name: "Barbell OHP",
-    sets: 3
+    sets: 3,
+    rep: "5–8"
   }, {
     name: "Incline DB Bench",
-    sets: 3
+    sets: 3,
+    rep: "6–10"
   }, {
     name: "Weighted Dips",
-    sets: 3
+    sets: 3,
+    rep: "8–12"
   }, {
     name: "DB Lateral Raise",
-    sets: 5
+    sets: 5,
+    rep: "12–15"
   }, {
     name: "Overhead Tricep Extension",
-    sets: 4
+    sets: 4,
+    rep: "8–12"
   }, {
     name: "Cable Raise",
     sets: 2,
-    uni: true
+    uni: true,
+    rep: "8–12"
   }, {
     name: "Upright Row",
-    sets: 4
+    sets: 4,
+    rep: "10–15"
   }]
 }, {
   label: "PULL B",
   accent: "#E65100",
   exercises: [{
     name: "Weighted Pullups",
-    sets: 4
+    sets: 4,
+    rep: "6–10"
   }, {
     name: "1 Arm Chest Supported Machine Row",
     sets: 3,
-    uni: true
+    uni: true,
+    rep: "8–12"
   }, {
     name: "Lat Pulldown",
-    sets: 3
+    sets: 3,
+    rep: "12–15"
   }, {
     name: "Bayesian Curl",
     sets: 4,
-    uni: true
+    uni: true,
+    rep: "8–12"
   }, {
     name: "Cable Row",
-    sets: 3
+    sets: 3,
+    rep: "8–12"
   }, {
     name: "Rear Delt Fly",
-    sets: 3
+    sets: 3,
+    rep: "10–15"
   }, {
     name: "Ab Crunch",
-    sets: 3
+    sets: 3,
+    rep: "8–12"
   }]
 }];
 const STORAGE_KEY = "workout-sessions-v1";
@@ -900,10 +943,19 @@ function App() {
       key: ex.name,
       style: S.exCard
     }, /*#__PURE__*/React.createElement("div", {
+      style: S.exNameRow
+    }, /*#__PURE__*/React.createElement("div", {
       style: S.exName
     }, ex.name, ex.uni && /*#__PURE__*/React.createElement("span", {
       style: S.perSide
-    }, "per side")), /*#__PURE__*/React.createElement("div", {
+    }, "per side")), ex.rep && /*#__PURE__*/React.createElement("span", {
+      style: {
+        ...S.repTag,
+        color: day.accent,
+        borderColor: day.accent + "55",
+        background: day.accent + "14"
+      }
+    }, ex.rep, " reps")), /*#__PURE__*/React.createElement("div", {
       style: S.setGrid
     }, /*#__PURE__*/React.createElement("div", {
       style: S.setHeadRow
@@ -1126,13 +1178,20 @@ const S = {
     padding: 16,
     marginBottom: 12
   },
+  exNameRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    marginBottom: 12
+  },
   exName: {
     fontSize: 15,
     fontWeight: 600,
-    marginBottom: 12,
     display: "flex",
     alignItems: "center",
-    gap: 8
+    gap: 8,
+    flex: 1
   },
   perSide: {
     fontSize: 10,
@@ -1143,6 +1202,16 @@ const S = {
     background: "#1e1e2e",
     padding: "3px 7px",
     borderRadius: 5
+  },
+  repTag: {
+    fontSize: 11,
+    fontWeight: 700,
+    letterSpacing: 0.3,
+    padding: "4px 9px",
+    borderRadius: 6,
+    border: "1px solid",
+    whiteSpace: "nowrap",
+    flexShrink: 0
   },
   setGrid: {
     display: "flex",
