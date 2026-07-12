@@ -333,10 +333,12 @@ const DAYS = [{
     sets: 4
   }, {
     name: "Bulgarian Split Squat",
-    sets: 3
+    sets: 3,
+    uni: true
   }, {
     name: "Step Ups",
-    sets: 3
+    sets: 3,
+    uni: true
   }, {
     name: "Leg Extension",
     sets: 3
@@ -389,7 +391,8 @@ const DAYS = [{
     sets: 3
   }, {
     name: "Bayesian Curl",
-    sets: 4
+    sets: 4,
+    uni: true
   }, {
     name: "Dumbbell Raise",
     sets: 3
@@ -398,7 +401,8 @@ const DAYS = [{
     sets: 3
   }, {
     name: "Cable Raise",
-    sets: 2
+    sets: 2,
+    uni: true
   }]
 }, {
   label: "REST",
@@ -430,6 +434,9 @@ const DAYS = [{
   label: "LEGS B",
   accent: "#6A1B9A",
   exercises: [{
+    name: "Deadlift",
+    sets: 3
+  }, {
     name: "RDL",
     sets: 3
   }, {
@@ -437,9 +444,6 @@ const DAYS = [{
     sets: 4
   }, {
     name: "Leg Press",
-    sets: 3
-  }, {
-    name: "Deadlift",
     sets: 3
   }, {
     name: "Leg Extension",
@@ -474,7 +478,8 @@ const DAYS = [{
     sets: 4
   }, {
     name: "Cable Raise",
-    sets: 2
+    sets: 2,
+    uni: true
   }, {
     name: "Upright Row",
     sets: 4
@@ -486,14 +491,16 @@ const DAYS = [{
     name: "Weighted Pullups",
     sets: 4
   }, {
-    name: "1 Arm DB Row",
-    sets: 3
+    name: "1 Arm Chest Supported Machine Row",
+    sets: 3,
+    uni: true
   }, {
     name: "Lat Pulldown",
     sets: 3
   }, {
     name: "Bayesian Curl",
-    sets: 4
+    sets: 4,
+    uni: true
   }, {
     name: "Cable Row",
     sets: 3
@@ -512,6 +519,37 @@ const fmtDate = s => new Date(s + "T00:00:00").toLocaleDateString("en-NZ", {
   day: "numeric",
   month: "short"
 });
+const emptyCell = () => ({
+  weight: "",
+  reps: ""
+});
+const emptyUniSet = () => ({
+  L: emptyCell(),
+  R: emptyCell()
+});
+
+// pull weights + volume out of a stored set regardless of shape
+function setMetrics(set) {
+  const weights = [];
+  let vol = 0;
+  const add = (w, r) => {
+    const wf = parseFloat(w);
+    if (!isNaN(wf)) {
+      weights.push(wf);
+      vol += wf * (parseInt(r) || 0);
+    }
+  };
+  if (set && set.L) {
+    add(set.L.weight, set.L.reps);
+    add(set.R.weight, set.R.reps);
+  } else if (set) {
+    add(set.weight, set.reps);
+  }
+  return {
+    weights,
+    vol
+  };
+}
 
 // ---- Simple SVG line chart (no dependencies) ----
 function LineChart({
@@ -611,26 +649,33 @@ function App() {
       });
     } else {
       day.exercises.forEach(ex => {
-        if (existing) {
-          const found = existing.exercises.find(e => e.name === ex.name);
-          fresh[ex.name] = found ? Array.from({
+        const found = existing && existing.exercises.find(e => e.name === ex.name);
+        if (ex.uni) {
+          fresh[ex.name] = Array.from({
             length: ex.sets
-          }, (_, i) => found.sets[i] || {
-            weight: "",
-            reps: ""
-          }) : Array.from({
-            length: ex.sets
-          }, () => ({
-            weight: "",
-            reps: ""
-          }));
+          }, (_, i) => {
+            const s = found && found.sets[i];
+            if (s && s.L) return {
+              L: {
+                ...s.L
+              },
+              R: {
+                ...s.R
+              }
+            };
+            return emptyUniSet();
+          });
         } else {
           fresh[ex.name] = Array.from({
             length: ex.sets
-          }, () => ({
-            weight: "",
-            reps: ""
-          }));
+          }, (_, i) => {
+            const s = found && found.sets[i];
+            if (s && s.weight !== undefined) return {
+              weight: s.weight,
+              reps: s.reps
+            };
+            return emptyCell();
+          });
         }
       });
     }
@@ -645,12 +690,25 @@ function App() {
     const ex = lastSession.exercises.find(e => e.name === name);
     return ex ? ex.sets : null;
   };
-  const updateSet = (name, idx, field, val) => {
+  const updateBil = (name, idx, field, val) => {
     setEntry(prev => ({
       ...prev,
       [name]: prev[name].map((s, i) => i === idx ? {
         ...s,
         [field]: val
+      } : s)
+    }));
+    setSaved(false);
+  };
+  const updateUni = (name, idx, side, field, val) => {
+    setEntry(prev => ({
+      ...prev,
+      [name]: prev[name].map((s, i) => i === idx ? {
+        ...s,
+        [side]: {
+          ...s[side],
+          [field]: val
+        }
       } : s)
     }));
     setSaved(false);
@@ -663,10 +721,21 @@ function App() {
         done: true
       }));
     } else {
-      exercises = day.exercises.map(ex => ({
-        name: ex.name,
-        sets: entry[ex.name].filter(s => s.weight !== "" || s.reps !== "")
-      })).filter(ex => ex.sets.length > 0);
+      exercises = day.exercises.map(ex => {
+        if (ex.uni) {
+          const sets = entry[ex.name].filter(s => s.L.weight !== "" || s.L.reps !== "" || s.R.weight !== "" || s.R.reps !== "");
+          return {
+            name: ex.name,
+            uni: true,
+            sets
+          };
+        }
+        const sets = entry[ex.name].filter(s => s.weight !== "" || s.reps !== "");
+        return {
+          name: ex.name,
+          sets
+        };
+      }).filter(ex => ex.sets.length > 0);
     }
     if (exercises.length === 0) return;
     const newSession = {
@@ -687,13 +756,17 @@ function App() {
   const chartData = useMemo(() => {
     return sessions.filter(s => s.exercises.some(e => e.name === progExercise)).map(s => {
       const ex = s.exercises.find(e => e.name === progExercise);
-      const valid = ex.sets.filter(set => set.weight !== "" && !isNaN(parseFloat(set.weight)));
-      if (valid.length === 0) return null;
-      const top = valid.reduce((a, b) => parseFloat(b.weight) > parseFloat(a.weight) ? b : a);
-      const vol = valid.reduce((sum, set) => sum + parseFloat(set.weight) * (parseInt(set.reps) || 0), 0);
+      let weights = [],
+        vol = 0;
+      ex.sets.forEach(set => {
+        const m = setMetrics(set);
+        weights = weights.concat(m.weights);
+        vol += m.vol;
+      });
+      if (weights.length === 0) return null;
       return {
         date: s.date,
-        topWeight: parseFloat(top.weight),
+        topWeight: Math.max(...weights),
         volume: vol,
         label: fmtDate(s.date)
       };
@@ -705,7 +778,14 @@ function App() {
       if (s.isRest) {
         s.exercises.forEach(ex => rows.push([s.date, s.label, ex.name, "-", "completed", "-"]));
       } else {
-        s.exercises.forEach(ex => ex.sets.forEach((set, i) => rows.push([s.date, s.label, ex.name, i + 1, set.weight, set.reps])));
+        s.exercises.forEach(ex => ex.sets.forEach((set, i) => {
+          if (set.L) {
+            rows.push([s.date, s.label, ex.name, i + 1 + " L", set.L.weight, set.L.reps]);
+            rows.push([s.date, s.label, ex.name, i + 1 + " R", set.R.weight, set.R.reps]);
+          } else {
+            rows.push([s.date, s.label, ex.name, i + 1, set.weight, set.reps]);
+          }
+        }));
       }
     });
     const csv = rows.map(r => r.join(",")).join("\n");
@@ -718,6 +798,12 @@ function App() {
     a.download = `workout-log-${todayStr()}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+  const lastCellText = (set, side) => {
+    if (!set) return "—";
+    const c = side ? set[side] : set;
+    if (!c) return "—";
+    return `${c.weight || "–"}×${c.reps || "–"}`;
   };
   return /*#__PURE__*/React.createElement("div", {
     style: S.app
@@ -815,7 +901,9 @@ function App() {
       style: S.exCard
     }, /*#__PURE__*/React.createElement("div", {
       style: S.exName
-    }, ex.name), /*#__PURE__*/React.createElement("div", {
+    }, ex.name, ex.uni && /*#__PURE__*/React.createElement("span", {
+      style: S.perSide
+    }, "per side")), /*#__PURE__*/React.createElement("div", {
       style: S.setGrid
     }, /*#__PURE__*/React.createElement("div", {
       style: S.setHeadRow
@@ -830,7 +918,34 @@ function App() {
         ...S.setHeadCell,
         color: "#444"
       }
-    }, "Last wk")), (entry[ex.name] || []).map((s, i) => /*#__PURE__*/React.createElement("div", {
+    }, "Last wk")), ex.uni ? (entry[ex.name] || []).map((s, i) => /*#__PURE__*/React.createElement("div", {
+      key: i,
+      style: S.uniGroup
+    }, ["L", "R"].map(side => /*#__PURE__*/React.createElement("div", {
+      key: side,
+      style: S.setInputRow
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        ...S.setNum,
+        color: side === "L" ? "#7aa7d6" : "#d69f7a"
+      }
+    }, i + 1, side), /*#__PURE__*/React.createElement("input", {
+      type: "number",
+      inputMode: "decimal",
+      placeholder: "kg",
+      value: s[side].weight,
+      onChange: e => updateUni(ex.name, i, side, "weight", e.target.value),
+      style: S.numInput
+    }), /*#__PURE__*/React.createElement("input", {
+      type: "number",
+      inputMode: "numeric",
+      placeholder: "reps",
+      value: s[side].reps,
+      onChange: e => updateUni(ex.name, i, side, "reps", e.target.value),
+      style: S.numInput
+    }), /*#__PURE__*/React.createElement("span", {
+      style: S.lastCell
+    }, lastCellText(lastSets && lastSets[i], side)))))) : (entry[ex.name] || []).map((s, i) => /*#__PURE__*/React.createElement("div", {
       key: i,
       style: S.setInputRow
     }, /*#__PURE__*/React.createElement("span", {
@@ -840,18 +955,18 @@ function App() {
       inputMode: "decimal",
       placeholder: "kg",
       value: s.weight,
-      onChange: e => updateSet(ex.name, i, "weight", e.target.value),
+      onChange: e => updateBil(ex.name, i, "weight", e.target.value),
       style: S.numInput
     }), /*#__PURE__*/React.createElement("input", {
       type: "number",
       inputMode: "numeric",
       placeholder: "reps",
       value: s.reps,
-      onChange: e => updateSet(ex.name, i, "reps", e.target.value),
+      onChange: e => updateBil(ex.name, i, "reps", e.target.value),
       style: S.numInput
     }), /*#__PURE__*/React.createElement("span", {
       style: S.lastCell
-    }, lastSets && lastSets[i] ? `${lastSets[i].weight || "–"}×${lastSets[i].reps || "–"}` : "—")))));
+    }, lastCellText(lastSets && lastSets[i]))))));
   }), /*#__PURE__*/React.createElement("button", {
     onClick: saveSession,
     style: {
@@ -1014,7 +1129,20 @@ const S = {
   exName: {
     fontSize: 15,
     fontWeight: 600,
-    marginBottom: 12
+    marginBottom: 12,
+    display: "flex",
+    alignItems: "center",
+    gap: 8
+  },
+  perSide: {
+    fontSize: 10,
+    fontWeight: 600,
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+    color: "#888",
+    background: "#1e1e2e",
+    padding: "3px 7px",
+    borderRadius: 5
   },
   setGrid: {
     display: "flex",
@@ -1023,7 +1151,7 @@ const S = {
   },
   setHeadRow: {
     display: "grid",
-    gridTemplateColumns: "28px 1fr 1fr 64px",
+    gridTemplateColumns: "34px 1fr 1fr 64px",
     gap: 8,
     alignItems: "center"
   },
@@ -1035,15 +1163,22 @@ const S = {
   },
   setInputRow: {
     display: "grid",
-    gridTemplateColumns: "28px 1fr 1fr 64px",
+    gridTemplateColumns: "34px 1fr 1fr 64px",
     gap: 8,
     alignItems: "center"
   },
+  uniGroup: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 6,
+    paddingBottom: 6,
+    borderBottom: "1px solid #17171f"
+  },
   setNum: {
-    fontSize: 13,
-    color: "#666",
+    fontSize: 12,
+    fontWeight: 700,
     textAlign: "center",
-    fontWeight: 600
+    color: "#666"
   },
   numInput: {
     background: "#0a0a0f",
