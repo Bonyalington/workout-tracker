@@ -843,7 +843,6 @@ function App() {
     const others = sessions.filter(s => !(s.date === date && s.label === day.label));
     const updated = [...others, newSession];
     try {
-try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
     } catch (e) {}
     try {
