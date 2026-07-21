@@ -563,6 +563,7 @@ const DAYS = [{
 }];
 const STORAGE_KEY = "workout-sessions-v1";
 const DRAFT_KEY = "workout-draft-v1";
+const SPLIT_KEY = "workout-split-v1";
 const ALL_EXERCISES = [...new Set(DAYS.filter(d => !d.isRest).flatMap(d => d.exercises.map(e => e.name)))].sort();
 const todayStr = () => new Date().toISOString().slice(0, 10);
 const fmtClock = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
@@ -578,6 +579,15 @@ const emptyUniSet = () => ({
   L: emptyCell(),
   R: emptyCell()
 });
+
+// True if the in-progress entry has any actual input (used to decide whether to keep a draft).
+function entryHasContent(en) {
+  return Object.values(en || {}).some(v => {
+    if (v === true) return true;
+    if (Array.isArray(v)) return v.some(s => s && s.L ? (s.L.weight || s.L.reps || s.R.weight || s.R.reps) : (s && (s.weight || s.reps)));
+    return false;
+  });
+}
 
 // pull weights + volume out of a stored set regardless of shape
 function setMetrics(set) {
@@ -686,11 +696,44 @@ function App() {
   const [progExercise, setProgExercise] = useState(ALL_EXERCISES[0]);
   const [dirty, setDirty] = useState(false);
   const [restLeft, setRestLeft] = useState(0);
-  const day = DAYS[dayIdx];
+  const [days, setDays] = useState(DAYS);
+  const [editing, setEditing] = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);
+  const day = days[dayIdx];
+
+  // Keep the date field caught up to the real calendar date. Without this,
+  // an installed app left running in the background can silently stay on
+  // the day it was last opened, so reopening it later shows old numbers
+  // instead of a blank slate. Skipped while you have unsaved input (dirty),
+  // so it never yanks the date out from under a session you're mid-way through.
+  const knownToday = React.useRef(todayStr());
+  useEffect(() => {
+    const check = () => {
+      const t = todayStr();
+      if (t !== knownToday.current) {
+        setDate(prev => (prev === knownToday.current && !dirty ? t : prev));
+        knownToday.current = t;
+      }
+    };
+    document.addEventListener("visibilitychange", check);
+    window.addEventListener("focus", check);
+    check();
+    return () => {
+      document.removeEventListener("visibilitychange", check);
+      window.removeEventListener("focus", check);
+    };
+  }, [dirty]);
   useEffect(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) setSessions(JSON.parse(stored));
+    } catch (e) {}
+    try {
+      const storedSplit = localStorage.getItem(SPLIT_KEY);
+      if (storedSplit) {
+        const parsed = JSON.parse(storedSplit);
+        if (Array.isArray(parsed) && parsed.length) setDays(parsed);
+      }
     } catch (e) {}
   }, []);
   useEffect(() => {
@@ -747,13 +790,15 @@ function App() {
     } catch (e) {}
     setEntry(fresh);
     setDirty(false);
-  }, [dayIdx, date, sessions]);
+  }, [dayIdx, date, sessions, days]);
 
   // Continuously back up the in-progress input so nothing is ever lost mid-session.
   useEffect(() => {
     try {
-      if (entry && Object.keys(entry).length) {
+      if (entryHasContent(entry)) {
         localStorage.setItem(DRAFT_KEY, JSON.stringify({ date, label: day.label, entry }));
+      } else {
+        localStorage.removeItem(DRAFT_KEY);
       }
     } catch (e) {}
   }, [entry, date, day.label]);
@@ -784,6 +829,56 @@ function App() {
     const ex = lastSession.exercises.find(e => e.name === name);
     return ex ? ex.sets : null;
   };
+
+  // ---- Split editing (customise exercises without touching code) ----
+  const persistDays = next => {
+    setDays(next);
+    try {
+      localStorage.setItem(SPLIT_KEY, JSON.stringify(next));
+    } catch (e) {}
+  };
+  const mutateDayExercises = fn => persistDays(days.map((d, i) => i === dayIdx ? { ...d, exercises: fn(d.exercises || []) } : d));
+  const editEx = (exIdx, patch) => mutateDayExercises(exs => exs.map((e, i) => i === exIdx ? { ...e, ...patch } : e));
+  const removeEx = exIdx => mutateDayExercises(exs => exs.filter((_, i) => i !== exIdx));
+  const moveEx = (exIdx, dir) => mutateDayExercises(exs => {
+    const j = exIdx + dir;
+    if (j < 0 || j >= exs.length) return exs;
+    const c = exs.slice();
+    const tmp = c[exIdx];
+    c[exIdx] = c[j];
+    c[j] = tmp;
+    return c;
+  });
+  const addEx = () => mutateDayExercises(exs => exs.concat({ name: "New exercise", sets: 3, rep: "8–12" }));
+  const resetDayToDefault = () => {
+    if (!DAYS[dayIdx]) return;
+    persistDays(days.map((d, i) => i === dayIdx ? JSON.parse(JSON.stringify(DAYS[dayIdx])) : d));
+  };
+
+  // Clear every box for the current day back to blank (fail-safe), and wipe its draft.
+  const clearDayInputs = () => {
+    const fresh = {};
+    if (day.isRest) {
+      day.exercises.forEach(ex => { fresh[ex.name] = false; });
+    } else {
+      day.exercises.forEach(ex => {
+        fresh[ex.name] = ex.uni
+          ? Array.from({ length: ex.sets }, () => emptyUniSet())
+          : Array.from({ length: ex.sets }, () => emptyCell());
+      });
+    }
+    setEntry(fresh);
+    setDirty(false);
+    try { localStorage.removeItem(DRAFT_KEY); } catch (e) {}
+    setConfirmReset(false);
+  };
+
+  // Exercises available in the Progress dropdown: current split + anything in history.
+  const exerciseOptions = useMemo(() => {
+    const fromSplit = days.filter(d => !d.isRest).flatMap(d => (d.exercises || []).map(e => e.name));
+    const fromHistory = sessions.flatMap(s => s.exercises.map(e => e.name));
+    return [...new Set([...fromSplit, ...fromHistory])].filter(Boolean).sort();
+  }, [days, sessions]);
   const updateBil = (name, idx, field, val) => {
     setEntry(prev => ({
       ...prev,
@@ -937,11 +1032,20 @@ function App() {
     style: S.eyebrow
   }, "Danyal — Training Log"), /*#__PURE__*/React.createElement("div", {
     style: S.title
-  }, "Workout Tracker")), /*#__PURE__*/React.createElement("div", {
+  }, "Workout Tracker"), tab === "log" && !day.isRest && /*#__PURE__*/React.createElement("button", {
+    onClick: () => setEditing(v => !v),
+    style: {
+      ...S.editToggleBtn,
+      ...(editing ? { background: day.accent, color: "#fff", borderColor: day.accent } : {})
+    }
+  }, editing ? "Done" : "Edit")), /*#__PURE__*/React.createElement("div", {
     style: S.tabBar
-  }, [["log", "Log"], ["progress", "Progress"], ["export", "Export"]].map(([id, lbl]) => /*#__PURE__*/React.createElement("button", {
+  }, [["log", "Log"], ["progress", "Progress"]].map(([id, lbl]) => /*#__PURE__*/React.createElement("button", {
     key: id,
-    onClick: () => setTab(id),
+    onClick: () => {
+      setTab(id);
+      if (id !== "log") setEditing(false);
+    },
     style: {
       ...S.tab,
       ...(tab === id ? S.tabActive : {})
@@ -950,7 +1054,7 @@ function App() {
     style: S.body
   }, /*#__PURE__*/React.createElement("div", {
     style: S.dayRow
-  }, DAYS.map((d, i) => /*#__PURE__*/React.createElement("button", {
+  }, days.map((d, i) => /*#__PURE__*/React.createElement("button", {
     key: d.label,
     onClick: () => setDayIdx(i),
     style: {
@@ -1134,13 +1238,27 @@ function App() {
     }), /*#__PURE__*/React.createElement("span", {
       style: S.lastCell
     }, lastCellText(lastSets && lastSets[i]))))));
-  }), /*#__PURE__*/React.createElement("button", {
+  }), /*#__PURE__*/React.createElement("div", {
+    style: S.saveRow
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      if (confirmReset) clearDayInputs();else {
+        setConfirmReset(true);
+        setTimeout(() => setConfirmReset(false), 3000);
+      }
+    },
+    style: {
+      ...S.resetBtn,
+      ...(confirmReset ? S.resetBtnConfirm : {})
+    }
+  }, confirmReset ? "Tap to confirm" : "Reset"), /*#__PURE__*/React.createElement("button", {
     onClick: saveSession,
     style: {
       ...S.saveBtn,
+      flex: 1,
       background: saved ? "#1e5c35" : day.accent
     }
-  }, saved ? "Saved ✓" : "Save session")), tab === "progress" && /*#__PURE__*/React.createElement("div", {
+  }, saved ? "Saved ✓" : "Save session"))), tab === "progress" && /*#__PURE__*/React.createElement("div", {
     style: S.body
   }, /*#__PURE__*/React.createElement("label", {
     style: S.dateLabel
@@ -1148,7 +1266,7 @@ function App() {
     value: progExercise,
     onChange: e => setProgExercise(e.target.value),
     style: S.select
-  }, ALL_EXERCISES.map(ex => /*#__PURE__*/React.createElement("option", {
+  }, exerciseOptions.map(ex => /*#__PURE__*/React.createElement("option", {
     key: ex,
     value: ex
   }, ex))), chartData.length === 0 ? /*#__PURE__*/React.createElement("div", {
@@ -1169,29 +1287,108 @@ function App() {
     data: chartData,
     color: "#2196F3",
     valueKey: "volume"
-  })))), tab === "export" && /*#__PURE__*/React.createElement("div", {
-    style: S.body
-  }, /*#__PURE__*/React.createElement("div", {
-    style: S.exportCard
-  }, /*#__PURE__*/React.createElement("div", {
-    style: S.exportStat
-  }, sessions.length), /*#__PURE__*/React.createElement("div", {
-    style: S.exportStatLabel
-  }, "sessions logged")), /*#__PURE__*/React.createElement("div", {
-    style: S.exportNote
-  }, "Download all your data as a CSV — opens in Excel or Google Sheets."), /*#__PURE__*/React.createElement("button", {
-    onClick: exportCSV,
-    disabled: sessions.length === 0,
-    style: {
-      ...S.saveBtn,
-      background: sessions.length === 0 ? "#222" : "#1e5c35",
-      opacity: sessions.length === 0 ? 0.5 : 1
+  })))), editing && !day.isRest && /*#__PURE__*/React.createElement("div", {
+    style: S.editOverlay,
+    onClick: e => {
+      if (e.target === e.currentTarget) setEditing(false);
     }
-  }, "Download CSV"), sessions.length === 0 && /*#__PURE__*/React.createElement("div", {
-    style: S.empty
-  }, "Nothing to export yet.")), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("div", {
+    style: S.editSheet
+  }, /*#__PURE__*/React.createElement("div", {
+    style: S.editHead
+  }, /*#__PURE__*/React.createElement("div", {
+    style: S.editTitle
+  }, "Edit ", /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: day.accent
+    }
+  }, day.label)), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setEditing(false),
+    style: {
+      ...S.editDone,
+      background: day.accent
+    }
+  }, "Done")), /*#__PURE__*/React.createElement("div", {
+    style: S.editHint
+  }, "Rename, add, remove or reorder exercises for this day. Your logged history is never changed."), (day.exercises || []).map((ex, exIdx) => /*#__PURE__*/React.createElement("div", {
+    key: exIdx,
+    style: S.editRow
+  }, /*#__PURE__*/React.createElement("input", {
+    value: ex.name,
+    onChange: e => editEx(exIdx, {
+      name: e.target.value
+    }),
+    placeholder: "Exercise name",
+    style: S.editName
+  }), /*#__PURE__*/React.createElement("div", {
+    style: S.editControls
+  }, /*#__PURE__*/React.createElement("label", {
+    style: S.editMini
+  }, "Sets", /*#__PURE__*/React.createElement("input", {
+    type: "number",
+    inputMode: "numeric",
+    value: ex.sets,
+    onChange: e => editEx(exIdx, {
+      sets: Math.max(1, Math.min(12, parseInt(e.target.value) || 1))
+    }),
+    style: S.editNum
+  })), /*#__PURE__*/React.createElement("label", {
+    style: S.editMini
+  }, "Reps", /*#__PURE__*/React.createElement("input", {
+    value: ex.rep || "",
+    onChange: e => editEx(exIdx, {
+      rep: e.target.value
+    }),
+    placeholder: "8–12",
+    style: S.editRepInput
+  })), /*#__PURE__*/React.createElement("label", {
+    style: S.editToggle
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: !!ex.uni,
+    onChange: e => editEx(exIdx, {
+      uni: e.target.checked
+    }),
+    style: {
+      accentColor: day.accent
+    }
+  }), "Per side")), /*#__PURE__*/React.createElement("div", {
+    style: S.editRowBtns
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => moveEx(exIdx, -1),
+    disabled: exIdx === 0,
+    style: {
+      ...S.editIconBtn,
+      opacity: exIdx === 0 ? 0.35 : 1
+    }
+  }, "↑"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => moveEx(exIdx, 1),
+    disabled: exIdx === (day.exercises.length - 1),
+    style: {
+      ...S.editIconBtn,
+      opacity: exIdx === (day.exercises.length - 1) ? 0.35 : 1
+    }
+  }, "↓"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => removeEx(exIdx),
+    style: {
+      ...S.editIconBtn,
+      marginLeft: "auto",
+      color: "#e57373",
+      borderColor: "#5c2626"
+    }
+  }, "Delete")))), /*#__PURE__*/React.createElement("button", {
+    onClick: addEx,
+    style: {
+      ...S.editAdd,
+      borderColor: day.accent + "66",
+      color: day.accent
+    }
+  }, "+ Add exercise"), DAYS[dayIdx] && /*#__PURE__*/React.createElement("button", {
+    onClick: resetDayToDefault,
+    style: S.editReset
+  }, "Reset ", day.label, " to default"))), /*#__PURE__*/React.createElement("div", {
     style: S.foot
-  }, "Data is saved on this device. Export to CSV regularly as a backup."));
+  }, "Saves to this device and syncs to your sheet automatically."));
 }
 const S = {
   app: {
@@ -1204,7 +1401,21 @@ const S = {
   header: {
     padding: "26px 22px 18px",
     borderBottom: "1px solid #1e1e2e",
-    background: "linear-gradient(180deg,#0d0d1a,#0a0a0f)"
+    background: "linear-gradient(180deg,#0d0d1a,#0a0a0f)",
+    position: "relative"
+  },
+  editToggleBtn: {
+    position: "absolute",
+    top: 22,
+    right: 20,
+    padding: "7px 14px",
+    borderRadius: 8,
+    border: "1px solid #2a2a3e",
+    background: "#111118",
+    color: "#aaa",
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: "pointer"
   },
   eyebrow: {
     fontSize: 11,
@@ -1500,6 +1711,173 @@ const S = {
     color: "#444",
     textAlign: "center",
     padding: "10px 22px 0"
+  },
+  saveRow: {
+    display: "flex",
+    gap: 8,
+    marginTop: 8
+  },
+  resetBtn: {
+    padding: "0 16px",
+    height: 48,
+    borderRadius: 10,
+    border: "1px solid #2a2a3e",
+    background: "#111118",
+    color: "#999",
+    fontSize: 14,
+    fontWeight: 600,
+    cursor: "pointer",
+    whiteSpace: "nowrap"
+  },
+  resetBtnConfirm: {
+    background: "#3a1e1e",
+    borderColor: "#5c2626",
+    color: "#e57373"
+  },
+  editOverlay: {
+    position: "fixed",
+    inset: 0,
+    background: "rgba(0,0,0,0.6)",
+    display: "flex",
+    alignItems: "flex-end",
+    justifyContent: "center",
+    zIndex: 50
+  },
+  editSheet: {
+    width: "100%",
+    maxWidth: 760,
+    maxHeight: "88vh",
+    overflowY: "auto",
+    background: "#0d0d16",
+    borderTop: "1px solid #1e1e2e",
+    borderRadius: "16px 16px 0 0",
+    padding: 20
+  },
+  editHead: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 6
+  },
+  editTitle: {
+    fontSize: 18,
+    fontWeight: 700
+  },
+  editDone: {
+    padding: "8px 18px",
+    borderRadius: 8,
+    border: "none",
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: 600,
+    cursor: "pointer"
+  },
+  editHint: {
+    fontSize: 12,
+    color: "#777",
+    lineHeight: 1.5,
+    marginBottom: 16
+  },
+  editRow: {
+    background: "#111118",
+    border: "1px solid #1e1e2e",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 10
+  },
+  editName: {
+    width: "100%",
+    background: "#0a0a0f",
+    border: "1px solid #2a2a3e",
+    borderRadius: 8,
+    color: "#e8e8f0",
+    padding: "10px 12px",
+    fontSize: 15,
+    fontWeight: 600,
+    marginBottom: 10
+  },
+  editControls: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 10,
+    alignItems: "center",
+    marginBottom: 10
+  },
+  editMini: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+    fontSize: 10,
+    letterSpacing: 1,
+    color: "#777",
+    textTransform: "uppercase"
+  },
+  editNum: {
+    width: 58,
+    background: "#0a0a0f",
+    border: "1px solid #2a2a3e",
+    borderRadius: 8,
+    color: "#e8e8f0",
+    padding: "8px 10px",
+    fontSize: 15,
+    textAlign: "center"
+  },
+  editRepInput: {
+    width: 78,
+    background: "#0a0a0f",
+    border: "1px solid #2a2a3e",
+    borderRadius: 8,
+    color: "#e8e8f0",
+    padding: "8px 10px",
+    fontSize: 15,
+    textAlign: "center"
+  },
+  editToggle: {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    fontSize: 13,
+    color: "#bbb",
+    cursor: "pointer",
+    marginTop: 14
+  },
+  editRowBtns: {
+    display: "flex",
+    gap: 6,
+    alignItems: "center"
+  },
+  editIconBtn: {
+    padding: "8px 12px",
+    borderRadius: 8,
+    border: "1px solid #2a2a3e",
+    background: "#0a0a0f",
+    color: "#ccc",
+    fontSize: 14,
+    fontWeight: 600,
+    cursor: "pointer"
+  },
+  editAdd: {
+    width: "100%",
+    padding: "13px",
+    borderRadius: 10,
+    border: "1.5px dashed",
+    background: "transparent",
+    fontSize: 14,
+    fontWeight: 600,
+    cursor: "pointer",
+    marginTop: 4,
+    marginBottom: 10
+  },
+  editReset: {
+    width: "100%",
+    padding: "11px",
+    borderRadius: 10,
+    border: "1px solid #2a2a3e",
+    background: "transparent",
+    color: "#777",
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: "pointer"
   }
 };
 ReactDOM.createRoot(document.getElementById("root")).render(/*#__PURE__*/React.createElement(App, null));</script>
