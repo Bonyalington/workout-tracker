@@ -695,7 +695,9 @@ function App() {
   const [entry, setEntry] = useState({});
   const [progExercise, setProgExercise] = useState(ALL_EXERCISES[0]);
   const [dirty, setDirty] = useState(false);
-  const [restLeft, setRestLeft] = useState(0);
+  const [restEnd, setRestEnd] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
+  const restLeft = restEnd ? Math.max(0, Math.ceil((restEnd - now) / 1000)) : 0;
   const [days, setDays] = useState(DAYS);
   const [editing, setEditing] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
@@ -810,16 +812,29 @@ function App() {
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirty]);
 
-  // Rest timer countdown.
+  // Rest timer, driven by a real end-time. Phones throttle background ticks, so
+  // instead of counting down tick-by-tick we store when the rest ends and always
+  // work out what's left from the actual clock. When you come back to the app it
+  // recalculates and snaps to the correct remaining time.
   useEffect(() => {
-    if (restLeft <= 0) return;
-    const id = setTimeout(() => {
-      const next = restLeft - 1;
-      setRestLeft(next);
-      if (next === 0 && navigator.vibrate) navigator.vibrate([120, 60, 120]);
-    }, 1000);
-    return () => clearTimeout(id);
-  }, [restLeft]);
+    if (!restEnd) return;
+    const tick = () => setNow(Date.now());
+    const id = setInterval(tick, 250);
+    document.addEventListener("visibilitychange", tick);
+    window.addEventListener("focus", tick);
+    tick();
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", tick);
+      window.removeEventListener("focus", tick);
+    };
+  }, [restEnd]);
+  useEffect(() => {
+    if (restEnd && restLeft <= 0) {
+      if (navigator.vibrate) navigator.vibrate([120, 60, 120]);
+      setRestEnd(0);
+    }
+  }, [restLeft, restEnd]);
   const lastSession = useMemo(() => {
     const prior = sessions.filter(s => s.label === day.label && s.date < date).sort((a, b) => a.date < b.date ? 1 : -1);
     return prior[0] || null;
@@ -1092,10 +1107,10 @@ function App() {
   }, fmtClock(restLeft)), /*#__PURE__*/React.createElement("div", {
     style: S.restBtnRow
   }, /*#__PURE__*/React.createElement("button", {
-    onClick: () => setRestLeft(restLeft + 30),
+    onClick: () => setRestEnd(restEnd + 30000),
     style: S.restMini
   }, "+30s"), /*#__PURE__*/React.createElement("button", {
-    onClick: () => setRestLeft(0),
+    onClick: () => setRestEnd(0),
     style: {
       ...S.restMini,
       color: "#e57373"
@@ -1106,7 +1121,7 @@ function App() {
     style: S.restBtnRow
   }, [150, 180, 210].map(sec => /*#__PURE__*/React.createElement("button", {
     key: sec,
-    onClick: () => setRestLeft(sec),
+    onClick: () => setRestEnd(Date.now() + sec * 1000),
     style: {
       ...S.restStart,
       borderColor: day.accent + "55",
