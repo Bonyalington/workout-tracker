@@ -4,6 +4,12 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
 <meta name="theme-color" content="#0a0a0f" />
+<link rel="manifest" href="manifest.webmanifest" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Workouts" />
+<link rel="apple-touch-icon" href="icon-192.png" />
 <title>Workout Tracker</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -556,8 +562,10 @@ const DAYS = [{
   }]
 }];
 const STORAGE_KEY = "workout-sessions-v1";
+const DRAFT_KEY = "workout-draft-v1";
 const ALL_EXERCISES = [...new Set(DAYS.filter(d => !d.isRest).flatMap(d => d.exercises.map(e => e.name)))].sort();
 const todayStr = () => new Date().toISOString().slice(0, 10);
+const fmtClock = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 const fmtDate = s => new Date(s + "T00:00:00").toLocaleDateString("en-NZ", {
   day: "numeric",
   month: "short"
@@ -676,6 +684,8 @@ function App() {
   const [date, setDate] = useState(todayStr());
   const [entry, setEntry] = useState({});
   const [progExercise, setProgExercise] = useState(ALL_EXERCISES[0]);
+  const [dirty, setDirty] = useState(false);
+  const [restLeft, setRestLeft] = useState(0);
   const day = DAYS[dayIdx];
   useEffect(() => {
     try {
@@ -722,8 +732,49 @@ function App() {
         }
       });
     }
+    // Restore any unsaved in-progress input for this exact day + date.
+    // This is what survives a tab switch, a browser being closed, or a crash.
+    try {
+      const draftRaw = localStorage.getItem(DRAFT_KEY);
+      if (draftRaw) {
+        const draft = JSON.parse(draftRaw);
+        if (draft && draft.date === date && draft.label === day.label && draft.entry) {
+          Object.keys(fresh).forEach(name => {
+            if (draft.entry[name] !== undefined) fresh[name] = draft.entry[name];
+          });
+        }
+      }
+    } catch (e) {}
     setEntry(fresh);
+    setDirty(false);
   }, [dayIdx, date, sessions]);
+
+  // Continuously back up the in-progress input so nothing is ever lost mid-session.
+  useEffect(() => {
+    try {
+      if (entry && Object.keys(entry).length) {
+        localStorage.setItem(DRAFT_KEY, JSON.stringify({ date, label: day.label, entry }));
+      }
+    } catch (e) {}
+  }, [entry, date, day.label]);
+
+  // Secondary net: warn if you try to leave with input that hasn't been saved as a session yet.
+  useEffect(() => {
+    const warn = e => { if (dirty) { e.preventDefault(); e.returnValue = ""; } };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
+
+  // Rest timer countdown.
+  useEffect(() => {
+    if (restLeft <= 0) return;
+    const id = setTimeout(() => {
+      const next = restLeft - 1;
+      setRestLeft(next);
+      if (next === 0 && navigator.vibrate) navigator.vibrate([120, 60, 120]);
+    }, 1000);
+    return () => clearTimeout(id);
+  }, [restLeft]);
   const lastSession = useMemo(() => {
     const prior = sessions.filter(s => s.label === day.label && s.date < date).sort((a, b) => a.date < b.date ? 1 : -1);
     return prior[0] || null;
@@ -742,6 +793,7 @@ function App() {
       } : s)
     }));
     setSaved(false);
+    setDirty(true);
   };
   const updateUni = (name, idx, side, field, val) => {
     setEntry(prev => ({
@@ -755,6 +807,7 @@ function App() {
       } : s)
     }));
     setSaved(false);
+    setDirty(true);
   };
   const saveSession = () => {
     let exercises;
@@ -792,30 +845,11 @@ function App() {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
     } catch (e) {}
-    // Send this session to n8n (doesn't affect anything else, fails silently if offline)
     try {
-      const rows = [];
-      exercises.forEach(ex => {
-        if (day.isRest) {
-          rows.push({ date, day: day.label, exercise: ex.name, set: "-", side: "-", weight: "-", reps: "-" });
-        } else if (ex.uni) {
-          ex.sets.forEach((s, i) => {
-            rows.push({ date, day: day.label, exercise: ex.name, set: i + 1, side: "L", weight: s.L.weight, reps: s.L.reps });
-            rows.push({ date, day: day.label, exercise: ex.name, set: i + 1, side: "R", weight: s.R.weight, reps: s.R.reps });
-          });
-        } else {
-          ex.sets.forEach((s, i) => {
-            rows.push({ date, day: day.label, exercise: ex.name, set: i + 1, side: "-", weight: s.weight, reps: s.reps });
-          });
-        }
-      });
-      fetch("https://n8n.petpantry.nz/webhook/workout-log", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rows })
-      }).catch(() => {});
+      localStorage.removeItem(DRAFT_KEY);
     } catch (e) {}
     setSessions(updated);
+    setDirty(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
   };
@@ -917,7 +951,40 @@ function App() {
       color: day.accent,
       fontWeight: 600
     }
-  }, day.label), " session: ", fmtDate(lastSession.date)), day.isRest ? day.exercises.map(ex => /*#__PURE__*/React.createElement("div", {
+  }, day.label), " session: ", fmtDate(lastSession.date)), !day.isRest && /*#__PURE__*/React.createElement("div", {
+    style: {
+      ...S.restCard,
+      borderColor: restLeft > 0 ? day.accent + "88" : "#1e1e2e"
+    }
+  }, restLeft > 0 ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      ...S.restTime,
+      color: day.accent
+    }
+  }, fmtClock(restLeft)), /*#__PURE__*/React.createElement("div", {
+    style: S.restBtnRow
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => setRestLeft(restLeft + 30),
+    style: S.restMini
+  }, "+30s"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setRestLeft(0),
+    style: {
+      ...S.restMini,
+      color: "#e57373"
+    }
+  }, "Stop"))) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", {
+    style: S.restLabel
+  }, "Rest timer"), /*#__PURE__*/React.createElement("div", {
+    style: S.restBtnRow
+  }, [60, 90, 120].map(sec => /*#__PURE__*/React.createElement("button", {
+    key: sec,
+    onClick: () => setRestLeft(sec),
+    style: {
+      ...S.restStart,
+      borderColor: day.accent + "55",
+      color: day.accent
+    }
+  }, fmtClock(sec)))))), day.isRest ? day.exercises.map(ex => /*#__PURE__*/React.createElement("div", {
     key: ex.name,
     style: S.exCard
   }, /*#__PURE__*/React.createElement("label", {
@@ -936,6 +1003,7 @@ function App() {
         [ex.name]: e.target.checked
       }));
       setSaved(false);
+      setDirty(true);
     },
     style: {
       width: 22,
@@ -1194,6 +1262,53 @@ const S = {
     borderRadius: 8,
     marginBottom: 16
   },
+  restCard: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    padding: "10px 14px",
+    background: "#0d0d18",
+    border: "1px solid #1e1e2e",
+    borderRadius: 10,
+    marginBottom: 16
+  },
+  restLabel: {
+    fontSize: 11,
+    letterSpacing: 1.5,
+    color: "#888",
+    textTransform: "uppercase"
+  },
+  restTime: {
+    fontSize: 26,
+    fontWeight: 700,
+    fontVariantNumeric: "tabular-nums",
+    letterSpacing: "-0.5px"
+  },
+  restBtnRow: {
+    display: "flex",
+    gap: 6
+  },
+  restStart: {
+    padding: "8px 12px",
+    borderRadius: 8,
+    border: "1.5px solid",
+    background: "transparent",
+    fontSize: 13,
+    fontWeight: 600,
+    fontVariantNumeric: "tabular-nums",
+    cursor: "pointer"
+  },
+  restMini: {
+    padding: "8px 12px",
+    borderRadius: 8,
+    border: "1px solid #2a2a3e",
+    background: "#111118",
+    color: "#e8e8f0",
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: "pointer"
+  },
   exCard: {
     background: "#111118",
     border: "1px solid #1e1e2e",
@@ -1364,5 +1479,12 @@ const S = {
   }
 };
 ReactDOM.createRoot(document.getElementById("root")).render(/*#__PURE__*/React.createElement(App, null));</script>
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("sw.js").catch(function () {});
+    });
+  }
+</script>
 </body>
 </html>
