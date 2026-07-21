@@ -843,10 +843,35 @@ function App() {
     const others = sessions.filter(s => !(s.date === date && s.label === day.label));
     const updated = [...others, newSession];
     try {
+try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
     } catch (e) {}
     try {
       localStorage.removeItem(DRAFT_KEY);
+    } catch (e) {}
+    // Send this session to n8n so it lands in your Google Sheet too.
+    // Fails silently if you're offline — your local save above already succeeded.
+    try {
+      const rows = [];
+      exercises.forEach(ex => {
+        if (day.isRest) {
+          rows.push({ date, day: day.label, exercise: ex.name, set: "-", side: "-", weight: "-", reps: "-" });
+        } else if (ex.uni) {
+          ex.sets.forEach((s, i) => {
+            rows.push({ date, day: day.label, exercise: ex.name, set: i + 1, side: "L", weight: s.L.weight, reps: s.L.reps });
+            rows.push({ date, day: day.label, exercise: ex.name, set: i + 1, side: "R", weight: s.R.weight, reps: s.R.reps });
+          });
+        } else {
+          ex.sets.forEach((s, i) => {
+            rows.push({ date, day: day.label, exercise: ex.name, set: i + 1, side: "-", weight: s.weight, reps: s.reps });
+          });
+        }
+      });
+      fetch("https://n8n.petpantry.nz/webhook/workout-log", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rows })
+      }).catch(() => {});
     } catch (e) {}
     setSessions(updated);
     setDirty(false);
