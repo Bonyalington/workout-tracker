@@ -4,6 +4,12 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
 <meta name="theme-color" content="#0a0a0f" />
+<link rel="manifest" href="manifest.webmanifest" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Workouts" />
+<link rel="apple-touch-icon" href="icon-192.png" />
 <title>Workout Tracker</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -571,9 +577,11 @@ const DAYS = [{
   }]
 }];
 const STORAGE_KEY = "workout-sessions-v1";
-const WEBHOOK_URL = "https://n8n.petpantry.nz/webhook/workout-log";
+const DRAFT_KEY = "workout-draft-v1";
+const SPLIT_KEY = "workout-split-v1";
 const ALL_EXERCISES = [...new Set(DAYS.filter(d => !d.isRest).flatMap(d => d.exercises.map(e => e.name)))].sort();
 const todayStr = () => new Date().toISOString().slice(0, 10);
+const fmtClock = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 const fmtDate = s => new Date(s + "T00:00:00").toLocaleDateString("en-NZ", {
   day: "numeric",
   month: "short"
@@ -586,6 +594,17 @@ const emptyUniSet = () => ({
   L: emptyCell(),
   R: emptyCell()
 });
+
+// True if the in-progress entry has any actual input (used to decide whether to keep a draft).
+function entryHasContent(en) {
+  return Object.values(en || {}).some(v => {
+    if (v === true) return true;
+    if (Array.isArray(v)) return v.some(s => s && s.L ? (s.L.weight || s.L.reps || s.R.weight || s.R.reps) : (s && (s.weight || s.reps)));
+    return false;
+  });
+}
+
+// pull weights + volume out of a stored set regardless of shape
 function setMetrics(set) {
   const weights = [];
   let vol = 0;
@@ -607,6 +626,8 @@ function setMetrics(set) {
     vol
   };
 }
+
+// ---- Simple SVG line chart (no dependencies) ----
 function LineChart({
   data,
   color,
@@ -684,21 +705,57 @@ function App() {
   const [tab, setTab] = useState("log");
   const [sessions, setSessions] = useState([]);
   const [saved, setSaved] = useState(false);
-  const [uploadState, setUploadState] = useState(null); // null | "uploading" | "synced" | "failed"
   const [dayIdx, setDayIdx] = useState(0);
   const [date, setDate] = useState(todayStr());
   const [entry, setEntry] = useState({});
   const [progExercise, setProgExercise] = useState(ALL_EXERCISES[0]);
-  const day = DAYS[dayIdx];
+  const [dirty, setDirty] = useState(false);
+  const [restEnd, setRestEnd] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
+  const restLeft = restEnd ? Math.max(0, Math.ceil((restEnd - now) / 1000)) : 0;
+  const [days, setDays] = useState(DAYS);
+  const [editing, setEditing] = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);
+  const day = days[dayIdx];
   const dayKey = day.key || day.label;
+
+  // Keep the date field caught up to the real calendar date. Without this,
+  // an installed app left running in the background can silently stay on
+  // the day it was last opened, so reopening it later shows old numbers
+  // instead of a blank slate. Skipped while you have unsaved input (dirty),
+  // so it never yanks the date out from under a session you're mid-way through.
+  const knownToday = React.useRef(todayStr());
+  useEffect(() => {
+    const check = () => {
+      const t = todayStr();
+      if (t !== knownToday.current) {
+        setDate(prev => (prev === knownToday.current && !dirty ? t : prev));
+        knownToday.current = t;
+      }
+    };
+    document.addEventListener("visibilitychange", check);
+    window.addEventListener("focus", check);
+    check();
+    return () => {
+      document.removeEventListener("visibilitychange", check);
+      window.removeEventListener("focus", check);
+    };
+  }, [dirty]);
   useEffect(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) setSessions(JSON.parse(stored));
     } catch (e) {}
+    try {
+      const storedSplit = localStorage.getItem(SPLIT_KEY);
+      if (storedSplit) {
+        const parsed = JSON.parse(storedSplit);
+        if (Array.isArray(parsed) && parsed.length) setDays(parsed);
+      }
+    } catch (e) {}
   }, []);
   useEffect(() => {
-    const existing = sessions.find(s => s.date === date && s.dayKey === dayKey);
+    const existing = sessions.find(s => s.date === date && (s.dayKey || s.label) === dayKey);
     const fresh = {};
     if (day.isRest) {
       day.exercises.forEach(ex => {
@@ -736,10 +793,66 @@ function App() {
         }
       });
     }
+    // Restore any unsaved in-progress input for this exact day + date.
+    // This is what survives a tab switch, a browser being closed, or a crash.
+    try {
+      const draftRaw = localStorage.getItem(DRAFT_KEY);
+      if (draftRaw) {
+        const draft = JSON.parse(draftRaw);
+        if (draft && draft.date === date && (draft.dayKey || draft.label) === dayKey && draft.entry) {
+          Object.keys(fresh).forEach(name => {
+            if (draft.entry[name] !== undefined) fresh[name] = draft.entry[name];
+          });
+        }
+      }
+    } catch (e) {}
     setEntry(fresh);
-  }, [dayIdx, date, sessions]);
+    setDirty(false);
+  }, [dayIdx, date, sessions, days]);
+
+  // Continuously back up the in-progress input so nothing is ever lost mid-session.
+  useEffect(() => {
+    try {
+      if (entryHasContent(entry)) {
+        localStorage.setItem(DRAFT_KEY, JSON.stringify({ date, label: day.label, dayKey, entry }));
+      } else {
+        localStorage.removeItem(DRAFT_KEY);
+      }
+    } catch (e) {}
+  }, [entry, date, dayKey]);
+
+  // Secondary net: warn if you try to leave with input that hasn't been saved as a session yet.
+  useEffect(() => {
+    const warn = e => { if (dirty) { e.preventDefault(); e.returnValue = ""; } };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
+
+  // Rest timer, driven by a real end-time. Phones throttle background ticks, so
+  // instead of counting down tick-by-tick we store when the rest ends and always
+  // work out what's left from the actual clock. When you come back to the app it
+  // recalculates and snaps to the correct remaining time.
+  useEffect(() => {
+    if (!restEnd) return;
+    const tick = () => setNow(Date.now());
+    const id = setInterval(tick, 250);
+    document.addEventListener("visibilitychange", tick);
+    window.addEventListener("focus", tick);
+    tick();
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", tick);
+      window.removeEventListener("focus", tick);
+    };
+  }, [restEnd]);
+  useEffect(() => {
+    if (restEnd && restLeft <= 0) {
+      if (navigator.vibrate) navigator.vibrate([120, 60, 120]);
+      setRestEnd(0);
+    }
+  }, [restLeft, restEnd]);
   const lastSession = useMemo(() => {
-    const prior = sessions.filter(s => s.dayKey === dayKey && s.date < date).sort((a, b) => a.date < b.date ? 1 : -1);
+    const prior = sessions.filter(s => (s.dayKey || s.label) === dayKey && s.date < date).sort((a, b) => a.date < b.date ? 1 : -1);
     return prior[0] || null;
   }, [sessions, dayKey, date]);
   const lastSetsFor = name => {
@@ -747,6 +860,56 @@ function App() {
     const ex = lastSession.exercises.find(e => e.name === name);
     return ex ? ex.sets : null;
   };
+
+  // ---- Split editing (customise exercises without touching code) ----
+  const persistDays = next => {
+    setDays(next);
+    try {
+      localStorage.setItem(SPLIT_KEY, JSON.stringify(next));
+    } catch (e) {}
+  };
+  const mutateDayExercises = fn => persistDays(days.map((d, i) => i === dayIdx ? { ...d, exercises: fn(d.exercises || []) } : d));
+  const editEx = (exIdx, patch) => mutateDayExercises(exs => exs.map((e, i) => i === exIdx ? { ...e, ...patch } : e));
+  const removeEx = exIdx => mutateDayExercises(exs => exs.filter((_, i) => i !== exIdx));
+  const moveEx = (exIdx, dir) => mutateDayExercises(exs => {
+    const j = exIdx + dir;
+    if (j < 0 || j >= exs.length) return exs;
+    const c = exs.slice();
+    const tmp = c[exIdx];
+    c[exIdx] = c[j];
+    c[j] = tmp;
+    return c;
+  });
+  const addEx = () => mutateDayExercises(exs => exs.concat({ name: "New exercise", sets: 3, rep: "8–12" }));
+  const resetDayToDefault = () => {
+    if (!DAYS[dayIdx]) return;
+    persistDays(days.map((d, i) => i === dayIdx ? JSON.parse(JSON.stringify(DAYS[dayIdx])) : d));
+  };
+
+  // Clear every box for the current day back to blank (fail-safe), and wipe its draft.
+  const clearDayInputs = () => {
+    const fresh = {};
+    if (day.isRest) {
+      day.exercises.forEach(ex => { fresh[ex.name] = false; });
+    } else {
+      day.exercises.forEach(ex => {
+        fresh[ex.name] = ex.uni
+          ? Array.from({ length: ex.sets }, () => emptyUniSet())
+          : Array.from({ length: ex.sets }, () => emptyCell());
+      });
+    }
+    setEntry(fresh);
+    setDirty(false);
+    try { localStorage.removeItem(DRAFT_KEY); } catch (e) {}
+    setConfirmReset(false);
+  };
+
+  // Exercises available in the Progress dropdown: current split + anything in history.
+  const exerciseOptions = useMemo(() => {
+    const fromSplit = days.filter(d => !d.isRest).flatMap(d => (d.exercises || []).map(e => e.name));
+    const fromHistory = sessions.flatMap(s => s.exercises.map(e => e.name));
+    return [...new Set([...fromSplit, ...fromHistory])].filter(Boolean).sort();
+  }, [days, sessions]);
   const updateBil = (name, idx, field, val) => {
     setEntry(prev => ({
       ...prev,
@@ -756,6 +919,7 @@ function App() {
       } : s)
     }));
     setSaved(false);
+    setDirty(true);
   };
   const updateUni = (name, idx, side, field, val) => {
     setEntry(prev => ({
@@ -769,66 +933,7 @@ function App() {
       } : s)
     }));
     setSaved(false);
-  };
-
-  // Build one flat row per set, matching the Sheet columns: date, day, exercise, set, side, weight, reps
-  const buildRows = exercises => {
-    const rows = [];
-    exercises.forEach(ex => {
-      ex.sets.forEach((set, i) => {
-        if (set.L) {
-          rows.push({
-            date,
-            day: day.label,
-            exercise: ex.name,
-            set: i + 1,
-            side: "L",
-            weight: set.L.weight,
-            reps: set.L.reps
-          });
-          rows.push({
-            date,
-            day: day.label,
-            exercise: ex.name,
-            set: i + 1,
-            side: "R",
-            weight: set.R.weight,
-            reps: set.R.reps
-          });
-        } else {
-          rows.push({
-            date,
-            day: day.label,
-            exercise: ex.name,
-            set: i + 1,
-            side: "-",
-            weight: set.weight,
-            reps: set.reps
-          });
-        }
-      });
-    });
-    return rows;
-  };
-  const uploadToSheet = async rows => {
-    setUploadState("uploading");
-    try {
-      for (const row of rows) {
-        const res = await fetch(WEBHOOK_URL, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify(row)
-        });
-        if (!res.ok) throw new Error("Webhook responded " + res.status);
-      }
-      setUploadState("synced");
-      setTimeout(() => setUploadState(null), 2500);
-    } catch (e) {
-      setUploadState("failed");
-      setTimeout(() => setUploadState(null), 4000);
-    }
+    setDirty(true);
   };
   const saveSession = () => {
     let exercises;
@@ -862,19 +967,42 @@ function App() {
       exercises,
       isRest: !!day.isRest
     };
-    const others = sessions.filter(s => !(s.date === date && s.dayKey === dayKey));
+    const others = sessions.filter(s => !(s.date === date && (s.dayKey || s.label) === dayKey));
     const updated = [...others, newSession];
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
     } catch (e) {}
+    try {
+      localStorage.removeItem(DRAFT_KEY);
+    } catch (e) {}
+    // Send this session to n8n so it lands in your Google Sheet too.
+    // Fails silently if you're offline — your local save above already succeeded.
+    try {
+      const rows = [];
+      exercises.forEach(ex => {
+        if (day.isRest) {
+          rows.push({ date, day: day.label, exercise: ex.name, set: "-", side: "-", weight: "-", reps: "-" });
+        } else if (ex.uni) {
+          ex.sets.forEach((s, i) => {
+            rows.push({ date, day: day.label, exercise: ex.name, set: i + 1, side: "L", weight: s.L.weight, reps: s.L.reps });
+            rows.push({ date, day: day.label, exercise: ex.name, set: i + 1, side: "R", weight: s.R.weight, reps: s.R.reps });
+          });
+        } else {
+          ex.sets.forEach((s, i) => {
+            rows.push({ date, day: day.label, exercise: ex.name, set: i + 1, side: "-", weight: s.weight, reps: s.reps });
+          });
+        }
+      });
+      fetch("https://n8n.petpantry.nz/webhook/workout-log", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rows })
+      }).catch(() => {});
+    } catch (e) {}
     setSessions(updated);
+    setDirty(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
-
-    // Push to Google Sheets via n8n webhook — lifting days only, matching the sheet schema
-    if (!day.isRest) {
-      uploadToSheet(buildRows(exercises));
-    }
   };
   const chartData = useMemo(() => {
     return sessions.filter(s => s.exercises.some(e => e.name === progExercise)).map(s => {
@@ -936,11 +1064,20 @@ function App() {
     style: S.eyebrow
   }, "Danyal — Training Log"), /*#__PURE__*/React.createElement("div", {
     style: S.title
-  }, "Workout Tracker")), /*#__PURE__*/React.createElement("div", {
+  }, "Workout Tracker"), tab === "log" && !day.isRest && /*#__PURE__*/React.createElement("button", {
+    onClick: () => setEditing(v => !v),
+    style: {
+      ...S.editToggleBtn,
+      ...(editing ? { background: day.accent, color: "#fff", borderColor: day.accent } : {})
+    }
+  }, editing ? "Done" : "Edit")), /*#__PURE__*/React.createElement("div", {
     style: S.tabBar
-  }, [["log", "Log"], ["progress", "Progress"], ["export", "Export"]].map(([id, lbl]) => /*#__PURE__*/React.createElement("button", {
+  }, [["log", "Log"], ["progress", "Progress"]].map(([id, lbl]) => /*#__PURE__*/React.createElement("button", {
     key: id,
-    onClick: () => setTab(id),
+    onClick: () => {
+      setTab(id);
+      if (id !== "log") setEditing(false);
+    },
     style: {
       ...S.tab,
       ...(tab === id ? S.tabActive : {})
@@ -949,7 +1086,7 @@ function App() {
     style: S.body
   }, /*#__PURE__*/React.createElement("div", {
     style: S.dayRow
-  }, DAYS.map((d, i) => /*#__PURE__*/React.createElement("button", {
+  }, days.map((d, i) => /*#__PURE__*/React.createElement("button", {
     key: d.key || d.label,
     onClick: () => setDayIdx(i),
     style: {
@@ -958,7 +1095,7 @@ function App() {
       background: dayIdx === i ? d.accent + "22" : "#111118",
       color: dayIdx === i ? d.accent : "#666"
     }
-  }, d.label, d.key === "REST2" ? " 2" : d.label === "REST" ? " 1" : ""))), /*#__PURE__*/React.createElement("div", {
+  }, d.label + (d.key === "REST2" ? " 2" : d.label === "REST" ? " 1" : "")))), /*#__PURE__*/React.createElement("div", {
     style: S.dateRow
   }, /*#__PURE__*/React.createElement("label", {
     style: S.dateLabel
@@ -974,7 +1111,40 @@ function App() {
       color: day.accent,
       fontWeight: 600
     }
-  }, day.label), " session: ", fmtDate(lastSession.date)), day.isRest ? day.exercises.map(ex => /*#__PURE__*/React.createElement("div", {
+  }, day.label), " session: ", fmtDate(lastSession.date)), !day.isRest && /*#__PURE__*/React.createElement("div", {
+    style: {
+      ...S.restCard,
+      borderColor: restLeft > 0 ? day.accent + "88" : "#1e1e2e"
+    }
+  }, restLeft > 0 ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      ...S.restTime,
+      color: day.accent
+    }
+  }, fmtClock(restLeft)), /*#__PURE__*/React.createElement("div", {
+    style: S.restBtnRow
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => setRestEnd(restEnd + 30000),
+    style: S.restMini
+  }, "+30s"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setRestEnd(0),
+    style: {
+      ...S.restMini,
+      color: "#e57373"
+    }
+  }, "Stop"))) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", {
+    style: S.restLabel
+  }, "Rest timer"), /*#__PURE__*/React.createElement("div", {
+    style: S.restBtnRow
+  }, [150, 180, 210].map(sec => /*#__PURE__*/React.createElement("button", {
+    key: sec,
+    onClick: () => setRestEnd(Date.now() + sec * 1000),
+    style: {
+      ...S.restStart,
+      borderColor: day.accent + "55",
+      color: day.accent
+    }
+  }, fmtClock(sec)))))), day.isRest ? day.exercises.map(ex => /*#__PURE__*/React.createElement("div", {
     key: ex.name,
     style: S.exCard
   }, /*#__PURE__*/React.createElement("label", {
@@ -993,6 +1163,7 @@ function App() {
         [ex.name]: e.target.checked
       }));
       setSaved(false);
+      setDirty(true);
     },
     style: {
       width: 22,
@@ -1099,25 +1270,27 @@ function App() {
     }), /*#__PURE__*/React.createElement("span", {
       style: S.lastCell
     }, lastCellText(lastSets && lastSets[i]))))));
-  }), /*#__PURE__*/React.createElement("button", {
+  }), /*#__PURE__*/React.createElement("div", {
+    style: S.saveRow
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      if (confirmReset) clearDayInputs();else {
+        setConfirmReset(true);
+        setTimeout(() => setConfirmReset(false), 3000);
+      }
+    },
+    style: {
+      ...S.resetBtn,
+      ...(confirmReset ? S.resetBtnConfirm : {})
+    }
+  }, confirmReset ? "Tap to confirm" : "Reset"), /*#__PURE__*/React.createElement("button", {
     onClick: saveSession,
     style: {
       ...S.saveBtn,
+      flex: 1,
       background: saved ? "#1e5c35" : day.accent
     }
-  }, saved ? "Saved ✓" : "Save session"), uploadState === "uploading" && /*#__PURE__*/React.createElement("div", {
-    style: S.syncNote
-  }, "Syncing to Google Sheets…"), uploadState === "synced" && /*#__PURE__*/React.createElement("div", {
-    style: {
-      ...S.syncNote,
-      color: "#4CAF50"
-    }
-  }, "Synced to Google Sheets ✓"), uploadState === "failed" && /*#__PURE__*/React.createElement("div", {
-    style: {
-      ...S.syncNote,
-      color: "#e57373"
-    }
-  }, "Saved locally, but sync to Sheets failed — check your connection.")), tab === "progress" && /*#__PURE__*/React.createElement("div", {
+  }, saved ? "Saved ✓" : "Save session"))), tab === "progress" && /*#__PURE__*/React.createElement("div", {
     style: S.body
   }, /*#__PURE__*/React.createElement("label", {
     style: S.dateLabel
@@ -1125,7 +1298,7 @@ function App() {
     value: progExercise,
     onChange: e => setProgExercise(e.target.value),
     style: S.select
-  }, ALL_EXERCISES.map(ex => /*#__PURE__*/React.createElement("option", {
+  }, exerciseOptions.map(ex => /*#__PURE__*/React.createElement("option", {
     key: ex,
     value: ex
   }, ex))), chartData.length === 0 ? /*#__PURE__*/React.createElement("div", {
@@ -1146,29 +1319,108 @@ function App() {
     data: chartData,
     color: "#2196F3",
     valueKey: "volume"
-  })))), tab === "export" && /*#__PURE__*/React.createElement("div", {
-    style: S.body
-  }, /*#__PURE__*/React.createElement("div", {
-    style: S.exportCard
-  }, /*#__PURE__*/React.createElement("div", {
-    style: S.exportStat
-  }, sessions.length), /*#__PURE__*/React.createElement("div", {
-    style: S.exportStatLabel
-  }, "sessions logged")), /*#__PURE__*/React.createElement("div", {
-    style: S.exportNote
-  }, "Download all your data as a CSV — opens in Excel or Google Sheets."), /*#__PURE__*/React.createElement("button", {
-    onClick: exportCSV,
-    disabled: sessions.length === 0,
-    style: {
-      ...S.saveBtn,
-      background: sessions.length === 0 ? "#222" : "#1e5c35",
-      opacity: sessions.length === 0 ? 0.5 : 1
+  })))), editing && !day.isRest && /*#__PURE__*/React.createElement("div", {
+    style: S.editOverlay,
+    onClick: e => {
+      if (e.target === e.currentTarget) setEditing(false);
     }
-  }, "Download CSV"), sessions.length === 0 && /*#__PURE__*/React.createElement("div", {
-    style: S.empty
-  }, "Nothing to export yet.")), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("div", {
+    style: S.editSheet
+  }, /*#__PURE__*/React.createElement("div", {
+    style: S.editHead
+  }, /*#__PURE__*/React.createElement("div", {
+    style: S.editTitle
+  }, "Edit ", /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: day.accent
+    }
+  }, day.label)), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setEditing(false),
+    style: {
+      ...S.editDone,
+      background: day.accent
+    }
+  }, "Done")), /*#__PURE__*/React.createElement("div", {
+    style: S.editHint
+  }, "Rename, add, remove or reorder exercises for this day. Your logged history is never changed."), (day.exercises || []).map((ex, exIdx) => /*#__PURE__*/React.createElement("div", {
+    key: exIdx,
+    style: S.editRow
+  }, /*#__PURE__*/React.createElement("input", {
+    value: ex.name,
+    onChange: e => editEx(exIdx, {
+      name: e.target.value
+    }),
+    placeholder: "Exercise name",
+    style: S.editName
+  }), /*#__PURE__*/React.createElement("div", {
+    style: S.editControls
+  }, /*#__PURE__*/React.createElement("label", {
+    style: S.editMini
+  }, "Sets", /*#__PURE__*/React.createElement("input", {
+    type: "number",
+    inputMode: "numeric",
+    value: ex.sets,
+    onChange: e => editEx(exIdx, {
+      sets: Math.max(1, Math.min(12, parseInt(e.target.value) || 1))
+    }),
+    style: S.editNum
+  })), /*#__PURE__*/React.createElement("label", {
+    style: S.editMini
+  }, "Reps", /*#__PURE__*/React.createElement("input", {
+    value: ex.rep || "",
+    onChange: e => editEx(exIdx, {
+      rep: e.target.value
+    }),
+    placeholder: "8–12",
+    style: S.editRepInput
+  })), /*#__PURE__*/React.createElement("label", {
+    style: S.editToggle
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: !!ex.uni,
+    onChange: e => editEx(exIdx, {
+      uni: e.target.checked
+    }),
+    style: {
+      accentColor: day.accent
+    }
+  }), "Per side")), /*#__PURE__*/React.createElement("div", {
+    style: S.editRowBtns
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => moveEx(exIdx, -1),
+    disabled: exIdx === 0,
+    style: {
+      ...S.editIconBtn,
+      opacity: exIdx === 0 ? 0.35 : 1
+    }
+  }, "↑"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => moveEx(exIdx, 1),
+    disabled: exIdx === (day.exercises.length - 1),
+    style: {
+      ...S.editIconBtn,
+      opacity: exIdx === (day.exercises.length - 1) ? 0.35 : 1
+    }
+  }, "↓"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => removeEx(exIdx),
+    style: {
+      ...S.editIconBtn,
+      marginLeft: "auto",
+      color: "#e57373",
+      borderColor: "#5c2626"
+    }
+  }, "Delete")))), /*#__PURE__*/React.createElement("button", {
+    onClick: addEx,
+    style: {
+      ...S.editAdd,
+      borderColor: day.accent + "66",
+      color: day.accent
+    }
+  }, "+ Add exercise"), DAYS[dayIdx] && /*#__PURE__*/React.createElement("button", {
+    onClick: resetDayToDefault,
+    style: S.editReset
+  }, "Reset ", day.label, " to default"))), /*#__PURE__*/React.createElement("div", {
     style: S.foot
-  }, "Data is saved on this device. Export to CSV regularly as a backup."));
+  }, "Saves to this device and syncs to your sheet automatically."));
 }
 const S = {
   app: {
@@ -1181,7 +1433,21 @@ const S = {
   header: {
     padding: "26px 22px 18px",
     borderBottom: "1px solid #1e1e2e",
-    background: "linear-gradient(180deg,#0d0d1a,#0a0a0f)"
+    background: "linear-gradient(180deg,#0d0d1a,#0a0a0f)",
+    position: "relative"
+  },
+  editToggleBtn: {
+    position: "absolute",
+    top: 22,
+    right: 20,
+    padding: "7px 14px",
+    borderRadius: 8,
+    border: "1px solid #2a2a3e",
+    background: "#111118",
+    color: "#aaa",
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: "pointer"
   },
   eyebrow: {
     fontSize: 11,
@@ -1262,6 +1528,53 @@ const S = {
     border: "1px solid #1e1e2e",
     borderRadius: 8,
     marginBottom: 16
+  },
+  restCard: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    padding: "10px 14px",
+    background: "#0d0d18",
+    border: "1px solid #1e1e2e",
+    borderRadius: 10,
+    marginBottom: 16
+  },
+  restLabel: {
+    fontSize: 11,
+    letterSpacing: 1.5,
+    color: "#888",
+    textTransform: "uppercase"
+  },
+  restTime: {
+    fontSize: 26,
+    fontWeight: 700,
+    fontVariantNumeric: "tabular-nums",
+    letterSpacing: "-0.5px"
+  },
+  restBtnRow: {
+    display: "flex",
+    gap: 6
+  },
+  restStart: {
+    padding: "8px 12px",
+    borderRadius: 8,
+    border: "1.5px solid",
+    background: "transparent",
+    fontSize: 13,
+    fontWeight: 600,
+    fontVariantNumeric: "tabular-nums",
+    cursor: "pointer"
+  },
+  restMini: {
+    padding: "8px 12px",
+    borderRadius: 8,
+    border: "1px solid #2a2a3e",
+    background: "#111118",
+    color: "#e8e8f0",
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: "pointer"
   },
   exCard: {
     background: "#111118",
@@ -1367,12 +1680,6 @@ const S = {
     cursor: "pointer",
     marginTop: 8
   },
-  syncNote: {
-    fontSize: 12,
-    color: "#888",
-    textAlign: "center",
-    marginTop: 10
-  },
   select: {
     width: "100%",
     background: "#111118",
@@ -1436,8 +1743,182 @@ const S = {
     color: "#444",
     textAlign: "center",
     padding: "10px 22px 0"
+  },
+  saveRow: {
+    display: "flex",
+    gap: 8,
+    marginTop: 8
+  },
+  resetBtn: {
+    padding: "0 16px",
+    height: 48,
+    borderRadius: 10,
+    border: "1px solid #2a2a3e",
+    background: "#111118",
+    color: "#999",
+    fontSize: 14,
+    fontWeight: 600,
+    cursor: "pointer",
+    whiteSpace: "nowrap"
+  },
+  resetBtnConfirm: {
+    background: "#3a1e1e",
+    borderColor: "#5c2626",
+    color: "#e57373"
+  },
+  editOverlay: {
+    position: "fixed",
+    inset: 0,
+    background: "rgba(0,0,0,0.6)",
+    display: "flex",
+    alignItems: "flex-end",
+    justifyContent: "center",
+    zIndex: 50
+  },
+  editSheet: {
+    width: "100%",
+    maxWidth: 760,
+    maxHeight: "88vh",
+    overflowY: "auto",
+    background: "#0d0d16",
+    borderTop: "1px solid #1e1e2e",
+    borderRadius: "16px 16px 0 0",
+    padding: 20
+  },
+  editHead: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 6
+  },
+  editTitle: {
+    fontSize: 18,
+    fontWeight: 700
+  },
+  editDone: {
+    padding: "8px 18px",
+    borderRadius: 8,
+    border: "none",
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: 600,
+    cursor: "pointer"
+  },
+  editHint: {
+    fontSize: 12,
+    color: "#777",
+    lineHeight: 1.5,
+    marginBottom: 16
+  },
+  editRow: {
+    background: "#111118",
+    border: "1px solid #1e1e2e",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 10
+  },
+  editName: {
+    width: "100%",
+    background: "#0a0a0f",
+    border: "1px solid #2a2a3e",
+    borderRadius: 8,
+    color: "#e8e8f0",
+    padding: "10px 12px",
+    fontSize: 15,
+    fontWeight: 600,
+    marginBottom: 10
+  },
+  editControls: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 10,
+    alignItems: "center",
+    marginBottom: 10
+  },
+  editMini: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+    fontSize: 10,
+    letterSpacing: 1,
+    color: "#777",
+    textTransform: "uppercase"
+  },
+  editNum: {
+    width: 58,
+    background: "#0a0a0f",
+    border: "1px solid #2a2a3e",
+    borderRadius: 8,
+    color: "#e8e8f0",
+    padding: "8px 10px",
+    fontSize: 15,
+    textAlign: "center"
+  },
+  editRepInput: {
+    width: 78,
+    background: "#0a0a0f",
+    border: "1px solid #2a2a3e",
+    borderRadius: 8,
+    color: "#e8e8f0",
+    padding: "8px 10px",
+    fontSize: 15,
+    textAlign: "center"
+  },
+  editToggle: {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    fontSize: 13,
+    color: "#bbb",
+    cursor: "pointer",
+    marginTop: 14
+  },
+  editRowBtns: {
+    display: "flex",
+    gap: 6,
+    alignItems: "center"
+  },
+  editIconBtn: {
+    padding: "8px 12px",
+    borderRadius: 8,
+    border: "1px solid #2a2a3e",
+    background: "#0a0a0f",
+    color: "#ccc",
+    fontSize: 14,
+    fontWeight: 600,
+    cursor: "pointer"
+  },
+  editAdd: {
+    width: "100%",
+    padding: "13px",
+    borderRadius: 10,
+    border: "1.5px dashed",
+    background: "transparent",
+    fontSize: 14,
+    fontWeight: 600,
+    cursor: "pointer",
+    marginTop: 4,
+    marginBottom: 10
+  },
+  editReset: {
+    width: "100%",
+    padding: "11px",
+    borderRadius: 10,
+    border: "1px solid #2a2a3e",
+    background: "transparent",
+    color: "#777",
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: "pointer"
   }
 };
 ReactDOM.createRoot(document.getElementById("root")).render(/*#__PURE__*/React.createElement(App, null));</script>
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("sw.js").catch(function () {});
+    });
+  }
+</script>
 </body>
 </html>
