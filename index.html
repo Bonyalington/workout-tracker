@@ -578,7 +578,7 @@ const DAYS = [{
 }];
 const STORAGE_KEY = "workout-sessions-v1";
 const DRAFT_KEY = "workout-draft-v1";
-const SPLIT_KEY = "workout-split-v1";
+const SPLIT_KEY = "workout-split-v2";
 const ALL_EXERCISES = [...new Set(DAYS.filter(d => !d.isRest).flatMap(d => d.exercises.map(e => e.name)))].sort();
 const todayStr = () => new Date().toISOString().slice(0, 10);
 const fmtClock = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
@@ -1361,6 +1361,9 @@ function App() {
     inputMode: "numeric",
     value: ex.sets,
     onChange: e => editEx(exIdx, {
+      sets: e.target.value
+    }),
+    onBlur: e => editEx(exIdx, {
       sets: Math.max(1, Math.min(12, parseInt(e.target.value) || 1))
     }),
     style: S.editNum
