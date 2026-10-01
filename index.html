@@ -368,12 +368,12 @@ const DAYS = [{
     rep: "6–10"
   }, {
     name: "Bulgarian Split Squat",
-    sets: 3,
+    sets: 2,
     uni: true,
     rep: "8–10"
   }, {
     name: "Step Ups",
-    sets: 3,
+    sets: 2,
     uni: true,
     rep: "10–12"
   }, {
@@ -421,11 +421,6 @@ const DAYS = [{
     name: "Ab Crunch",
     sets: 3,
     rep: "8–12"
-  }, {
-    name: "Cable Raise",
-    sets: 2,
-    uni: true,
-    rep: "8–12"
   }]
 }, {
   label: "REST",
@@ -461,30 +456,17 @@ const DAYS = [{
     sets: 3,
     rep: "5–8"
   }, {
-    name: "Incline DB Bench",
-    sets: 3,
-    rep: "6–10"
-  }, {
-    name: "Weighted Dips",
-    sets: 3,
-    rep: "8–12"
-  }, {
     name: "DB Lateral Raise",
     sets: 5,
     rep: "12–15"
   }, {
+    name: "Incline DB Bench",
+    sets: 3,
+    rep: "6–10"
+  }, {
     name: "Overhead Tricep Extension",
-    sets: 4,
+    sets: 3,
     rep: "8–12"
-  }, {
-    name: "Cable Raise",
-    sets: 2,
-    uni: true,
-    rep: "8–12"
-  }, {
-    name: "Upright Row",
-    sets: 4,
-    rep: "10–15"
   }]
 }, {
   label: "LEGS B",
@@ -535,9 +517,8 @@ const DAYS = [{
     sets: 3,
     rep: "12–15"
   }, {
-    name: "Bayesian Curl",
-    sets: 4,
-    uni: true,
+    name: "Spider Curl",
+    sets: 3,
     rep: "8–12"
   }, {
     name: "Rear Delt Fly",
@@ -578,7 +559,8 @@ const DAYS = [{
 }];
 const STORAGE_KEY = "workout-sessions-v1";
 const DRAFT_KEY = "workout-draft-v1";
-const SPLIT_KEY = "workout-split-v2";
+// Bump when DAYS changes so phones drop their saved copy and load the new programme.
+const SPLIT_KEY = "workout-split-v3";
 const ALL_EXERCISES = [...new Set(DAYS.filter(d => !d.isRest).flatMap(d => d.exercises.map(e => e.name)))].sort();
 // Local calendar date. toISOString() is UTC, which in NZ is still "yesterday"
 // until about 1pm, so morning sessions were being saved with the wrong date.
