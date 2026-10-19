@@ -336,91 +336,87 @@ const DAYS = [{
   accent: "#2196F3",
   exercises: [{
     name: "Bench Press",
-    sets: 4,
-    rep: "5–8"
+    sets: 3,
+    rep: "6–8"
   }, {
     name: "DB Incline Press",
     sets: 3,
-    rep: "4–8"
+    rep: "8–10"
+  }, {
+    name: "Cable Lateral Raise",
+    sets: 4,
+    uni: true,
+    rep: "10–15"
   }, {
     name: "DB Flys",
-    sets: 3,
+    sets: 2,
     rep: "12–15"
-  }, {
-    name: "Pressdowns",
-    sets: 4,
-    rep: "8–12"
   }, {
     name: "Overhead Tricep Extension",
     sets: 3,
     rep: "8–12"
   }, {
-    name: "Upright Row",
-    sets: 4,
-    rep: "6–10"
+    name: "Incline Curl",
+    sets: 2,
+    rep: "8–12"
   }]
 }, {
   label: "LEGS A",
   accent: "#9C27B0",
   exercises: [{
-    name: "Leg Press",
-    sets: 4,
+    name: "Box Jump",
+    sets: 3,
+    rep: "3"
+  }, {
+    name: "Hack Squat",
+    sets: 3,
     rep: "6–10"
   }, {
-    name: "Bulgarian Split Squat",
-    sets: 2,
-    uni: true,
-    rep: "8–10"
-  }, {
-    name: "Step Ups",
-    sets: 2,
-    uni: true,
-    rep: "10–12"
+    name: "RDL",
+    sets: 3,
+    rep: "6–10"
   }, {
     name: "Leg Extension",
     sets: 3,
-    rep: "8–12"
+    rep: "10–15"
   }, {
     name: "Leg Curl",
     sets: 3,
     rep: "10–12"
   }, {
     name: "Calf Raises (Machine)",
-    sets: 4,
-    rep: "10–15"
-  }, {
-    name: "Preacher Curl",
-    sets: 4,
+    sets: 3,
     rep: "8–12"
   }]
 }, {
   label: "PULL A",
   accent: "#FF9800",
   exercises: [{
-    name: "Barbell Row",
-    sets: 4,
+    name: "Weighted Pullups",
+    sets: 3,
     rep: "6–10"
   }, {
-    name: "Lat Pulldown",
+    name: "Chest Supported Row",
     sets: 3,
-    rep: "8–12"
+    rep: "8–10"
   }, {
-    name: "Cable Row",
+    name: "1 Arm Cable Pulldown",
+    sets: 2,
+    uni: true,
+    rep: "10–15"
+  }, {
+    name: "Rear Delt Fly",
     sets: 3,
-    rep: "8–12"
+    rep: "12–20"
   }, {
     name: "Bayesian Curl",
-    sets: 4,
+    sets: 3,
     uni: true,
-    rep: "6–10"
+    rep: "10–15"
   }, {
-    name: "Dumbbell Raise",
-    sets: 3,
-    rep: "8–12"
-  }, {
-    name: "Ab Crunch",
-    sets: 3,
-    rep: "8–12"
+    name: "Overhead Tricep Extension",
+    sets: 2,
+    rep: "10–15"
   }]
 }, {
   label: "REST",
@@ -452,115 +448,98 @@ const DAYS = [{
   label: "PUSH B",
   accent: "#1565C0",
   exercises: [{
-    name: "Barbell OHP",
-    sets: 3,
-    rep: "5–8"
-  }, {
-    name: "DB Lateral Raise",
-    sets: 5,
-    rep: "12–15"
-  }, {
-    name: "Incline DB Bench",
+    name: "Incline Barbell Press",
     sets: 3,
     rep: "6–10"
   }, {
-    name: "Overhead Tricep Extension",
+    name: "Weighted Dips",
     sets: 3,
+    rep: "8–12"
+  }, {
+    name: "DB Lateral Raise",
+    sets: 4,
+    rep: "12–20"
+  }, {
+    name: "1 Arm Overhead Extension",
+    sets: 3,
+    uni: true,
+    rep: "10–15"
+  }, {
+    name: "Pressdowns",
+    sets: 2,
+    rep: "10–15"
+  }, {
+    name: "Preacher Curl",
+    sets: 2,
     rep: "8–12"
   }]
 }, {
   label: "LEGS B",
   accent: "#6A1B9A",
   exercises: [{
-    name: "RDL",
-    sets: 4,
-    rep: "6–10"
-  }, {
-    name: "Hip Thrust",
-    sets: 4,
-    rep: "8–12"
-  }, {
-    name: "Leg Press",
-    sets: 3,
-    rep: "10–12"
-  }, {
-    name: "Leg Extension",
-    sets: 2,
-    rep: "12–15"
-  }, {
     name: "Leg Curl",
     sets: 3,
-    rep: "12–15"
+    rep: "8–12"
   }, {
-    name: "Calf Raises (Machine)",
-    sets: 4,
+    name: "Bulgarian Split Squat",
+    sets: 3,
+    uni: true,
+    rep: "8–12"
+  }, {
+    name: "45° Back Extension",
+    sets: 3,
     rep: "10–15"
   }, {
-    name: "Incline Curl",
-    sets: 4,
+    name: "Leg Extension",
+    sets: 3,
     rep: "12–15"
+  }, {
+    name: "Seated Calf Raise",
+    sets: 3,
+    rep: "12–20"
+  }, {
+    name: "Cable Lateral Raise",
+    sets: 2,
+    uni: true,
+    rep: "12–20"
   }]
 }, {
   label: "PULL B",
   accent: "#E65100",
   exercises: [{
-    name: "Weighted Pullups",
-    sets: 4,
-    rep: "6–10"
-  }, {
-    name: "1 Arm Chest Supported Machine Row",
+    name: "Incline DB Row",
     sets: 3,
-    uni: true,
-    rep: "8–12"
+    rep: "6–10"
   }, {
     name: "Lat Pulldown",
     sets: 3,
-    rep: "12–15"
-  }, {
-    name: "Spider Curl",
-    sets: 3,
     rep: "8–12"
   }, {
-    name: "Rear Delt Fly",
+    name: "Cable Row",
+    sets: 2,
+    rep: "10–12"
+  }, {
+    name: "Face Pull",
+    sets: 2,
+    rep: "12–20"
+  }, {
+    name: "EZ-Bar Curl",
     sets: 3,
+    rep: "6–10"
+  }, {
+    name: "Hammer Curl",
+    sets: 2,
+    rep: "10–12"
+  }, {
+    name: "Overhead Tricep Extension",
+    sets: 2,
     rep: "10–15"
-  }, {
-    name: "Ab Crunch",
-    sets: 3,
-    rep: "8–12"
-  }]
-}, {
-  label: "REST",
-  accent: "#4CAF50",
-  isRest: true,
-  key: "REST2",
-  exercises: [{
-    name: "Run — Zone 2 / Tempo / 4×4 (rotating)",
-    note: "Zone 2 every 2nd rest day; alternate Tempo and 4×4 on the other"
-  }, {
-    name: "Hip Flexor Stretch (Couch)",
-    note: "3 × 45 sec each side"
-  }, {
-    name: "Ankle Dorsiflexion Drill",
-    note: "3 × 10–15 each side"
-  }, {
-    name: "Thoracic Spine Rotation",
-    note: "2 × 10 each side"
-  }, {
-    name: "Glute Bridge Hold",
-    note: "3 × 30 sec"
-  }, {
-    name: "Deep Squat Hold",
-    note: "3 × 30–45 sec"
-  }, {
-    name: "Calf / Soleus Stretch",
-    note: "2 × 45 sec each"
   }]
 }];
 const STORAGE_KEY = "workout-sessions-v1";
 const DRAFT_KEY = "workout-draft-v1";
 // Bump when DAYS changes so phones drop their saved copy and load the new programme.
-const SPLIT_KEY = "workout-split-v3";
+const SPLIT_KEY = "workout-split-v4";
 const ALL_EXERCISES = [...new Set(DAYS.filter(d => !d.isRest).flatMap(d => d.exercises.map(e => e.name)))].sort();
 // Local calendar date. toISOString() is UTC, which in NZ is still "yesterday"
 // until about 1pm, so morning sessions were being saved with the wrong date.
@@ -1079,7 +1058,7 @@ function App() {
       background: dayIdx === i ? d.accent + "22" : "#111118",
       color: dayIdx === i ? d.accent : "#666"
     }
-  }, d.label + (d.key === "REST2" ? " 2" : d.label === "REST" ? " 1" : "")))), /*#__PURE__*/React.createElement("div", {
+  }, d.label))), /*#__PURE__*/React.createElement("div", {
     style: S.dateRow
   }, /*#__PURE__*/React.createElement("label", {
     style: S.dateLabel
@@ -1120,7 +1099,7 @@ function App() {
     style: S.restLabel
   }, "Rest timer"), /*#__PURE__*/React.createElement("div", {
     style: S.restBtnRow
-  }, [150, 180, 210].map(sec => /*#__PURE__*/React.createElement("button", {
+  }, [90, 120, 150, 180].map(sec => /*#__PURE__*/React.createElement("button", {
     key: sec,
     onClick: () => setRestEnd(Date.now() + sec * 1000),
     style: {
