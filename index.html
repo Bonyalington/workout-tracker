@@ -337,28 +337,40 @@ const DAYS = [{
   exercises: [{
     name: "Bench Press",
     sets: 3,
-    rep: "6–8"
+    rep: "6–8",
+    rir: "1–2",
+    rest: 180
   }, {
     name: "DB Incline Press",
     sets: 3,
-    rep: "8–10"
+    rep: "8–10",
+    rir: "1–2",
+    rest: 150
   }, {
     name: "Cable Lateral Raise",
     sets: 4,
     uni: true,
-    rep: "10–15"
+    rep: "10–15",
+    rir: "0–1",
+    rest: 90
   }, {
     name: "DB Flys",
     sets: 2,
-    rep: "12–15"
+    rep: "12–15",
+    rir: "0–1",
+    rest: 90
   }, {
     name: "Overhead Tricep Extension",
     sets: 3,
-    rep: "8–12"
+    rep: "8–12",
+    rir: "0–1",
+    superset: "Incline Curl"
   }, {
     name: "Incline Curl",
     sets: 2,
-    rep: "8–12"
+    rep: "8–12",
+    rir: "0–1",
+    rest: 90
   }]
 }, {
   label: "LEGS A",
@@ -366,27 +378,45 @@ const DAYS = [{
   exercises: [{
     name: "Box Jump",
     sets: 3,
-    rep: "3"
+    rep: "3",
+    rir: "Far from failure",
+    rest: 180
   }, {
     name: "Hack Squat",
     sets: 3,
-    rep: "6–10"
+    rep: "6–10",
+    rir: "1–2",
+    rest: 180
   }, {
     name: "RDL",
     sets: 3,
-    rep: "6–10"
+    rep: "6–10",
+    rir: "2",
+    rest: 180
   }, {
     name: "Leg Extension",
     sets: 3,
-    rep: "10–15"
+    rep: "10–15",
+    rir: "0–1",
+    rest: 90
   }, {
     name: "Leg Curl",
     sets: 3,
-    rep: "10–12"
+    rep: "10–12",
+    rir: "0–1",
+    rest: 90
+  }, {
+    name: "Hip Abduction",
+    sets: 3,
+    rep: "12–20",
+    rir: "0–1",
+    rest: 90
   }, {
     name: "Calf Raises (Machine)",
     sets: 3,
-    rep: "8–12"
+    rep: "8–12",
+    rir: "0–1",
+    rest: 90
   }]
 }, {
   label: "PULL A",
@@ -394,29 +424,41 @@ const DAYS = [{
   exercises: [{
     name: "Weighted Pullups",
     sets: 3,
-    rep: "6–10"
+    rep: "6–10",
+    rir: "1–2",
+    rest: 150
   }, {
     name: "Chest Supported Row",
     sets: 3,
-    rep: "8–10"
+    rep: "8–10",
+    rir: "1–2",
+    rest: 150
   }, {
     name: "1 Arm Cable Pulldown",
     sets: 2,
     uni: true,
-    rep: "10–15"
+    rep: "10–15",
+    rir: "0–1",
+    rest: 90
   }, {
     name: "Rear Delt Fly",
     sets: 3,
-    rep: "12–20"
+    rep: "12–20",
+    rir: "0–1",
+    rest: 90
   }, {
     name: "Bayesian Curl",
     sets: 3,
     uni: true,
-    rep: "10–15"
+    rep: "10–15",
+    rir: "0–1",
+    superset: "Overhead Tricep Extension"
   }, {
     name: "Overhead Tricep Extension",
     sets: 2,
-    rep: "10–15"
+    rep: "10–15",
+    rir: "0–1",
+    rest: 90
   }]
 }, {
   label: "REST",
@@ -448,30 +490,42 @@ const DAYS = [{
   label: "PUSH B",
   accent: "#1565C0",
   exercises: [{
-    name: "Incline Barbell Press",
+    name: "Barbell OHP",
     sets: 3,
-    rep: "6–10"
+    rep: "6–10",
+    rir: "1–2",
+    rest: 180
   }, {
-    name: "Weighted Dips",
+    name: "Machine Chest Press",
     sets: 3,
-    rep: "8–12"
+    rep: "8–12",
+    rir: "1–2",
+    rest: 150
   }, {
     name: "DB Lateral Raise",
     sets: 4,
-    rep: "12–20"
+    rep: "12–20",
+    rir: "0–1",
+    rest: 90
   }, {
     name: "1 Arm Overhead Extension",
     sets: 3,
     uni: true,
-    rep: "10–15"
+    rep: "10–15",
+    rir: "0–1",
+    rest: 90
   }, {
     name: "Pressdowns",
     sets: 2,
-    rep: "10–15"
+    rep: "10–15",
+    rir: "0–1",
+    superset: "Preacher Curl"
   }, {
     name: "Preacher Curl",
     sets: 2,
-    rep: "8–12"
+    rep: "8–12",
+    rir: "0–1",
+    rest: 90
   }]
 }, {
   label: "LEGS B",
@@ -479,29 +533,48 @@ const DAYS = [{
   exercises: [{
     name: "Leg Curl",
     sets: 3,
-    rep: "8–12"
+    rep: "8–12",
+    rir: "0–1",
+    rest: 120
   }, {
     name: "Bulgarian Split Squat",
     sets: 3,
     uni: true,
-    rep: "8–12"
+    rep: "8–12",
+    rir: "1–2",
+    rest: 120
   }, {
     name: "45° Back Extension",
     sets: 3,
-    rep: "10–15"
+    rep: "10–15",
+    rir: "1–2",
+    rest: 120
   }, {
     name: "Leg Extension",
     sets: 3,
-    rep: "12–15"
+    rep: "12–15",
+    rir: "0–1",
+    rest: 90
   }, {
-    name: "Seated Calf Raise",
+    name: "Cable Hip Abduction",
     sets: 3,
-    rep: "12–20"
+    uni: true,
+    rep: "10–15",
+    rir: "0–1",
+    rest: 90
+  }, {
+    name: "Calf Raises (Machine)",
+    sets: 3,
+    rep: "12–20",
+    rir: "0–1",
+    superset: "Cable Lateral Raise"
   }, {
     name: "Cable Lateral Raise",
     sets: 2,
     uni: true,
-    rep: "12–20"
+    rep: "12–20",
+    rir: "0–1",
+    rest: 90
   }]
 }, {
   label: "PULL B",
@@ -509,37 +582,67 @@ const DAYS = [{
   exercises: [{
     name: "Incline DB Row",
     sets: 3,
-    rep: "6–10"
+    rep: "6–10",
+    rir: "1–2",
+    rest: 150
   }, {
     name: "Lat Pulldown",
     sets: 3,
-    rep: "8–12"
+    rep: "8–12",
+    rir: "1–2",
+    rest: 120
   }, {
     name: "Cable Row",
     sets: 2,
-    rep: "10–12"
+    rep: "10–12",
+    rir: "0–1",
+    rest: 90
   }, {
     name: "Face Pull",
     sets: 2,
-    rep: "12–20"
+    rep: "12–20",
+    rir: "0–1",
+    rest: 90
   }, {
     name: "EZ-Bar Curl",
     sets: 3,
-    rep: "6–10"
+    rep: "6–10",
+    rir: "0–1",
+    rest: 120
   }, {
     name: "Hammer Curl",
     sets: 2,
-    rep: "10–12"
+    rep: "10–12",
+    rir: "0–1",
+    superset: "Overhead Tricep Extension"
   }, {
     name: "Overhead Tricep Extension",
     sets: 2,
-    rep: "10–15"
+    rep: "10–15",
+    rir: "0–1",
+    rest: 90
   }]
 }];
 const STORAGE_KEY = "workout-sessions-v1";
-const DRAFT_KEY = "workout-draft-v1";
+const DRAFT_KEY = "workout-draft-v1"; // old single-slot draft, only read as a fallback
+// Unsaved input for every day you've started, keyed "date|dayKey", so hopping
+// between days mid-workout never loses what you've typed.
+const DRAFTS_KEY = "workout-drafts-v2";
+const draftKeyFor = (date, dayKey) => date + "|" + dayKey;
+const readDrafts = () => {
+  try {
+    return JSON.parse(localStorage.getItem(DRAFTS_KEY)) || {};
+  } catch (e) {
+    return {};
+  }
+};
+const writeDrafts = drafts => {
+  try {
+    localStorage.setItem(DRAFTS_KEY, JSON.stringify(drafts));
+  } catch (e) {}
+};
 // Bump when DAYS changes so phones drop their saved copy and load the new programme.
-const SPLIT_KEY = "workout-split-v4";
+const SPLIT_KEY = "workout-split-v5";
 const ALL_EXERCISES = [...new Set(DAYS.filter(d => !d.isRest).flatMap(d => d.exercises.map(e => e.name)))].sort();
 // Local calendar date. toISOString() is UTC, which in NZ is still "yesterday"
 // until about 1pm, so morning sessions were being saved with the wrong date.
@@ -674,6 +777,13 @@ function App() {
   const [progExercise, setProgExercise] = useState(ALL_EXERCISES[0]);
   const [dirty, setDirty] = useState(false);
   const [restEnd, setRestEnd] = useState(0);
+  const [draftKeys, setDraftKeys] = useState(() => Object.keys(readDrafts()));
+  const entryKeyRef = React.useRef(null); // "date|dayKey" the current entry belongs to
+  const [restFor, setRestFor] = useState(null); // exercise whose rest button started the timer
+  const startRest = (sec, name) => {
+    setRestEnd(Date.now() + sec * 1000);
+    setRestFor(name || null);
+  };
   const [now, setNow] = useState(() => Date.now());
   const restLeft = restEnd ? Math.max(0, Math.ceil((restEnd - now) / 1000)) : 0;
   const [days, setDays] = useState(DAYS);
@@ -757,32 +867,56 @@ function App() {
       });
     }
     // Restore any unsaved in-progress input for this exact day + date.
-    // This is what survives a tab switch, a browser being closed, or a crash.
-    try {
-      const draftRaw = localStorage.getItem(DRAFT_KEY);
-      if (draftRaw) {
-        const draft = JSON.parse(draftRaw);
-        if (draft && draft.date === date && (draft.dayKey || draft.label) === dayKey && draft.entry) {
-          Object.keys(fresh).forEach(name => {
-            if (draft.entry[name] !== undefined) fresh[name] = draft.entry[name];
-          });
+    // This is what survives switching days, a browser being closed, or a crash.
+    const key = draftKeyFor(date, dayKey);
+    let draftEntry = readDrafts()[key];
+    if (!draftEntry) {
+      try {
+        const old = JSON.parse(localStorage.getItem(DRAFT_KEY));
+        if (old && old.date === date && (old.dayKey || old.label) === dayKey) draftEntry = old.entry;
+      } catch (e) {}
+    }
+    if (draftEntry) {
+      Object.keys(fresh).forEach(name => {
+        const d = draftEntry[name];
+        if (day.isRest) {
+          if (typeof d === "boolean") fresh[name] = d;
+        } else if (Array.isArray(d)) {
+          // Overlay set by set, so a draft still fits if sets or per-side were edited since.
+          fresh[name] = fresh[name].map((cell, i) => d[i] && !!d[i].L === !!cell.L ? d[i] : cell);
         }
-      }
-    } catch (e) {}
+      });
+    }
+    entryKeyRef.current = key;
     setEntry(fresh);
     setDirty(false);
   }, [dayIdx, date, sessions, days]);
 
   // Continuously back up the in-progress input so nothing is ever lost mid-session.
+  // Runs only when the input itself changes, and files it under the day it was
+  // loaded for (entryKeyRef), so switching days can't copy one day's input onto another.
   useEffect(() => {
-    try {
-      if (entryHasContent(entry)) {
-        localStorage.setItem(DRAFT_KEY, JSON.stringify({ date, label: day.label, dayKey, entry }));
-      } else {
-        localStorage.removeItem(DRAFT_KEY);
-      }
-    } catch (e) {}
-  }, [entry, date, dayKey]);
+    const key = entryKeyRef.current;
+    // Not dirty = just loaded (from a saved session or an existing draft): nothing new to keep.
+    if (!key || !dirty) return;
+    const drafts = readDrafts();
+    if (entryHasContent(entry)) drafts[key] = entry;
+    else delete drafts[key];
+    // Drop drafts more than two weeks old.
+    const cutoff = new Date(Date.now() - 14 * 864e5).toISOString().slice(0, 10);
+    Object.keys(drafts).forEach(k => { if (k.split("|")[0] < cutoff) delete drafts[k]; });
+    writeDrafts(drafts);
+    try { localStorage.removeItem(DRAFT_KEY); } catch (e) {}
+    setDraftKeys(Object.keys(drafts));
+  }, [entry]);
+
+  const dropDraft = key => {
+    const drafts = readDrafts();
+    delete drafts[key];
+    writeDrafts(drafts);
+    setDraftKeys(Object.keys(drafts));
+    try { localStorage.removeItem(DRAFT_KEY); } catch (e) {}
+  };
 
   // Secondary net: warn if you try to leave with input that hasn't been saved as a session yet.
   useEffect(() => {
@@ -863,7 +997,7 @@ function App() {
     }
     setEntry(fresh);
     setDirty(false);
-    try { localStorage.removeItem(DRAFT_KEY); } catch (e) {}
+    dropDraft(draftKeyFor(date, dayKey));
     setConfirmReset(false);
   };
 
@@ -935,9 +1069,7 @@ function App() {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
     } catch (e) {}
-    try {
-      localStorage.removeItem(DRAFT_KEY);
-    } catch (e) {}
+    dropDraft(draftKeyFor(date, dayKey));
     // Send this session to n8n so it lands in your Google Sheet too.
     // Fails silently if you're offline — your local save above already succeeded.
     try {
@@ -1058,7 +1190,13 @@ function App() {
       background: dayIdx === i ? d.accent + "22" : "#111118",
       color: dayIdx === i ? d.accent : "#666"
     }
-  }, d.label))), /*#__PURE__*/React.createElement("div", {
+  }, d.label, draftKeys.includes(draftKeyFor(date, d.key || d.label)) && /*#__PURE__*/React.createElement("span", {
+    title: "Unsaved input kept",
+    style: {
+      ...S.draftDot,
+      background: d.accent
+    }
+  })))), /*#__PURE__*/React.createElement("div", {
     style: S.dateRow
   }, /*#__PURE__*/React.createElement("label", {
     style: S.dateLabel
@@ -1101,7 +1239,7 @@ function App() {
     style: S.restBtnRow
   }, [90, 120, 150, 180].map(sec => /*#__PURE__*/React.createElement("button", {
     key: sec,
-    onClick: () => setRestEnd(Date.now() + sec * 1000),
+    onClick: () => startRest(sec, null),
     style: {
       ...S.restStart,
       borderColor: day.accent + "55",
@@ -1169,9 +1307,31 @@ function App() {
         borderColor: day.accent + "55",
         background: day.accent + "14"
       }
-    }, ex.rep, " reps")), /*#__PURE__*/React.createElement("div", {
+    }, ex.rep, " reps")), (ex.rir || ex.rest || ex.superset) && /*#__PURE__*/React.createElement("div", {
+      style: S.exMeta
+    }, /*#__PURE__*/React.createElement("span", {
+      style: S.exMetaText
+    }, ex.rir ? "RIR " + ex.rir : ""), ex.superset ? /*#__PURE__*/React.createElement("span", {
+      style: S.exMetaText
+    }, "Superset → ", /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: "#bbb"
+      }
+    }, ex.superset)) : ex.rest > 0 && (() => {
+      // This exercise's own rest: tap to start, tap again while it's counting to stop.
+      const running = restFor === ex.name && restLeft > 0;
+      return /*#__PURE__*/React.createElement("button", {
+        onClick: () => running ? setRestEnd(0) : startRest(ex.rest, ex.name),
+        style: {
+          ...S.exRestBtn,
+          color: running ? "#0a0a0f" : day.accent,
+          borderColor: day.accent + (running ? "" : "66"),
+          background: running ? day.accent : "transparent"
+        }
+      }, running ? fmtClock(restLeft) + "  ✕" : "▶ Rest " + fmtClock(ex.rest));
+    })()), /*#__PURE__*/React.createElement("div", {
       style: S.setGrid
-    }, /*#__PURE__*/React.createElement("div", {
+    },/*#__PURE__*/React.createElement("div", {
       style: S.setHeadRow
     }, /*#__PURE__*/React.createElement("span", {
       style: S.setHeadCell
@@ -1339,6 +1499,28 @@ function App() {
     }),
     placeholder: "8–12",
     style: S.editRepInput
+  })), /*#__PURE__*/React.createElement("label", {
+    style: S.editMini
+  }, "RIR", /*#__PURE__*/React.createElement("input", {
+    value: ex.rir || "",
+    onChange: e => editEx(exIdx, {
+      rir: e.target.value
+    }),
+    placeholder: "0–1",
+    style: S.editRepInput
+  })), /*#__PURE__*/React.createElement("label", {
+    style: S.editMini
+  }, "Rest s", /*#__PURE__*/React.createElement("input", {
+    type: "number",
+    inputMode: "numeric",
+    value: ex.rest || "",
+    onChange: e => editEx(exIdx, {
+      // Giving an exercise its own rest takes it out of a superset.
+      rest: parseInt(e.target.value) || 0,
+      superset: undefined
+    }),
+    placeholder: ex.superset ? "SS" : "90",
+    style: S.editNum
   })), /*#__PURE__*/React.createElement("label", {
     style: S.editToggle
   }, /*#__PURE__*/React.createElement("input", {
@@ -1555,6 +1737,37 @@ const S = {
     justifyContent: "space-between",
     gap: 10,
     marginBottom: 12
+  },
+  draftDot: {
+    display: "inline-block",
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginLeft: 6,
+    verticalAlign: "middle"
+  },
+  exMeta: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    marginTop: -4,
+    marginBottom: 12
+  },
+  exMetaText: {
+    fontSize: 12,
+    color: "#777",
+    fontWeight: 500
+  },
+  exRestBtn: {
+    padding: "6px 11px",
+    borderRadius: 7,
+    border: "1.5px solid",
+    fontSize: 12,
+    fontWeight: 700,
+    fontVariantNumeric: "tabular-nums",
+    whiteSpace: "nowrap",
+    cursor: "pointer"
   },
   exName: {
     fontSize: 15,
